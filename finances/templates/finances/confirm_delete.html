@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} - Finances{% endblock %}
+
+{% block content %}
+<div class="card" style="max-width:480px;">
+    <h2 style="margin-top:0;">{{ title }}</h2>
+    <p>Are you sure you want to delete <strong>{{ object }}</strong>?</p>
+    <form method="post">
+        {% csrf_token %}
+        <div class="actions">
+            <button class="btn danger" type="submit">Delete</button>
+            <a class="btn secondary" href="javascript:history.back()">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

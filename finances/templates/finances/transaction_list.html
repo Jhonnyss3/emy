@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Transactions - Finances{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="actions" style="justify-content:space-between;">
+        <h2 style="margin:0;">Transactions</h2>
+        <a class="btn" href="{% url 'finances:transaction_create' %}">+ New transaction</a>
+    </div>
+    <div class="actions" style="margin-top:12px;">
+        <span class="muted">Filter:</span>
+        <a class="pill" href="{% url 'finances:transaction_list' %}">All</a>
+        <a class="pill" href="?type=income">Income</a>
+        <a class="pill" href="?type=expense">Expense</a>
+    </div>
+    <table style="margin-top:14px;">
+        <thead>
+            <tr>
+                <th>Date</th><th>Description</th><th>Category</th><th>Method</th>
+                <th>Type</th><th>Amount</th><th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for t in transactions %}
+            <tr>
+                <td>{{ t.date }}</td>
+                <td>{{ t.description }}</td>
+                <td><span class="swatch" style="background:{{ t.category.color }}"></span>{{ t.category.name }}</td>
+                <td>{{ t.get_payment_method_display }}</td>
+                <td><span class="pill">{{ t.get_type_display }}</span></td>
+                <td class="{{ t.type }}">{{ t.signed_amount }}</td>
+                <td class="actions">
+                    <a href="{% url 'finances:transaction_update' t.pk %}">Edit</a>
+                    <a class="expense" href="{% url 'finances:transaction_delete' t.pk %}">Delete</a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" class="muted">No transactions found.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

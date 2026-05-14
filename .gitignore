@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+.venv/
+venv/
+
+# Django
+db.sqlite3
+db.sqlite3-journal
+/media/
+/staticfiles/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# TailwindCSS (django-tailwind) — compiled CSS is a build artifact
+theme/static/css/dist/
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
