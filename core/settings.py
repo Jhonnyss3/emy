@@ -37,9 +37,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'finances',
     'tailwind',
     'theme',
-    'finances',
 ]
 
 # Tailwind CSS
