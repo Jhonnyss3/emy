@@ -95,6 +95,7 @@ Ao adicionar ou editar funcionalidades em qualquer app, seguir sempre esta ordem
 - Nunca fazer force push para main/master sem confirmação explícita.
 - Sempre criar commits novos, nunca amend sem instrução direta.
 - Mensagem de commit: concisa, focada no "por que", em português.
+- Nunca incluir a linha `Co-Authored-By` nas mensagens de commit (vale tanto para commits criados quanto para mensagens geradas a pedido).
 
 ---
 
