@@ -95,7 +95,6 @@ Ao adicionar ou editar funcionalidades em qualquer app, seguir sempre esta ordem
 - Nunca fazer force push para main/master sem confirmação explícita.
 - Sempre criar commits novos, nunca amend sem instrução direta.
 - Mensagem de commit: concisa, focada no "por que", em português.
-- O projeto ainda **não é um repositório git** — inicializar antes do primeiro commit.
 
 ---
 
@@ -149,6 +148,7 @@ emy/
 ├── theme/                # App do django-tailwind (gerado por `tailwind init`)
 │   ├── static_src/src/styles.css   # fonte do Tailwind (@import + @source)
 │   └── static/css/dist/styles.css  # CSS compilado (artefato de build)
+├── docs/                 # Documentação de guidelines e padrões (índice em docs/README.md)
 ├── manage.py
 ├── requirements.txt
 ├── db.sqlite3

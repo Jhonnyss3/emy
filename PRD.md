@@ -219,6 +219,7 @@ emy/
 │   ├── migrations/
 │   └── templates/        # base.html, finances/, registration/
 ├── theme/                # App do django-tailwind (fonte + build do CSS)
+├── docs/                 # Documentação de guidelines e padrões
 ├── manage.py
 ├── requirements.txt
 └── db.sqlite3
