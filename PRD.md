@@ -354,99 +354,67 @@ erDiagram
 ## 9. Design system
 
 > Implementação: classes utilitárias do **TailwindCSS** aplicadas diretamente
-> no **Django Template Language**. Recomenda-se centralizar combinações
-> recorrentes em `{% include %}` de componentes ou em uma camada
-> `@layer components` no CSS de entrada do Tailwind.
+> no **Django Template Language**. Os tokens de design vivem no bloco `@theme`
+> de `theme/static_src/src/styles.css`.
 >
-> **Status:** o TailwindCSS v4 já está **instalado e configurado** (`django-tailwind`
-> em modo standalone, sem Node.js — app `theme`, carregado no `base.html` via
-> `{% tailwind_css %}`). A **conversão dos templates** para as classes utilitárias
-> descritas abaixo ainda é trabalho pendente — atualmente o `base.html` mantém um
-> bloco `<style>` com CSS inline herdado da v1, que coexiste com o Tailwind até a
-> migração tela a tela (Sprint 7).
+> **Status:** os templates foram migrados da v1 (CSS inline) para a identidade
+> visual **Emy — variação "Petal"**, escolhida entre três explorações de
+> design (Soft Bloom / Petal / Aurora). O bloco `<style>` inline foi removido
+> do `base.html`; toda a estilização é via classes Tailwind + tokens `emy-*`.
+> A migração cobriu apenas as telas com model atual (`Category` /
+> `Transaction`) — features do mock sem model (Cartões, Metas, Insights,
+> Transferência, Recorrência) ficaram fora. **A fonte de verdade do design
+> implementado são os próprios templates**; as tabelas abaixo descrevem os
+> tokens e os princípios da variação Petal.
 
-### 9.1 Cores
+### 9.1 Personalidade — "Petal"
 
-| Token | Tailwind | Hex | Uso |
-|---|---|---|---|
-| Primária | `blue-600` | `#2563eb` | Botões principais, links, marca |
-| Primária (hover) | `blue-700` | `#1d4ed8` | Estado hover de botões/links |
-| Fundo da página | `slate-100` | `#f1f5f9` | `body` |
-| Superfície / card | `white` | `#ffffff` | Cards, formulários, tabelas |
-| Borda | `slate-200` | `#e2e8f0` | Divisórias, contornos de inputs |
-| Texto principal | `slate-800` | `#1e293b` | Corpo de texto |
-| Texto secundário | `slate-500` | `#64748b` | Labels auxiliares, legendas |
-| Receita / sucesso | `green-600` | `#16a34a` | Valores positivos, alertas de sucesso |
-| Despesa / erro | `red-600` | `#dc2626` | Valores negativos, alertas de erro |
-| Aviso | `amber-500` | `#f59e0b` | Mensagens de atenção |
+Off-white rosado, soft/feminino com glow, cards bem arredondados, gradiente
+rosa→roxo em botões e destaques, nav inferior flutuante, tom motivacional e
+íntimo na escrita da interface.
 
-### 9.2 Tipografia
+### 9.2 Cores (tokens `@theme`)
 
-| Elemento | Classes Tailwind |
-|---|---|
-| Família base | `font-sans` (system-ui / Segoe UI / Roboto) |
-| Título de página (h1/h2) | `text-2xl font-bold text-slate-800` |
-| Subtítulo (h3) | `text-lg font-semibold text-slate-800` |
-| Corpo | `text-sm text-slate-800` |
-| Auxiliar / legenda | `text-xs text-slate-500` |
-| Número de destaque (stats) | `text-2xl font-bold` |
+| Token | Hex | Uso |
+|---|---|---|
+| `emy-bg` / `emy-bg-warm` / `emy-bg-deep` | `#FBF3F1` / `#F6E9E4` / `#F3DDDB` | Fundos off-white rosados |
+| `emy-surface` | `#FFFFFF` | Cards, formulários |
+| `emy-ink` / `emy-ink-soft` / `emy-ink-mute` | `#2A1A36` / `#5E4861` / `#8B7A8E` | Texto (principal → auxiliar) |
+| `emy-line` / `emy-line-2` | `rgba(42,26,54,.08)` / `.14` | Divisórias, contornos |
+| `emy-pink-50..700` | `#FDF2F8` … `#BE185D` | Marca (rosa), `emy-pink-500 = #EC4899` |
+| `emy-purple-50..700` | `#F5F3FF` … `#6D28D9` | Marca (roxo), `emy-purple-500 = #8B5CF6` |
+| `emy-good` | `#10B981` | Receita, sucesso |
+| `emy-bad` | `#E11D48` | Despesa, erro, ações destrutivas |
 
-### 9.3 Botões
+Gradiente de marca: `bg-gradient-to-br from-emy-pink-500 to-emy-purple-500`.
 
-| Variante | Classes Tailwind |
-|---|---|
-| Primário | `inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2` |
-| Secundário | `inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50` |
-| Destrutivo | `inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700` |
-| Link de ação (em tabela) | `text-sm text-blue-600 hover:underline` |
+### 9.3 Tipografia (tokens `@theme`)
 
-### 9.4 Inputs
+| Token | Fonte | Uso |
+|---|---|---|
+| `font-sans` | Plus Jakarta Sans | Corpo e títulos (família base) |
+| `font-serif` | Instrument Serif | Destaques editoriais |
+| `font-script` | Caveat | Toques manuscritos |
 
-| Elemento | Classes Tailwind |
-|---|---|
-| Input / select / textarea | `w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500` |
-| Label | `block text-sm font-medium text-slate-700 mb-1` |
-| Mensagem de erro de campo | `mt-1 text-xs text-red-600` |
-| Input de cor (`type=color`) | `h-10 w-full rounded-lg border border-slate-200 p-1` |
-| Estado desabilitado | `disabled:bg-slate-100 disabled:text-slate-400` |
+Títulos de página: `text-3xl font-extrabold tracking-tight`. Auxiliar:
+`text-xs text-emy-ink-mute uppercase tracking-wider`.
 
-### 9.5 Forms
+### 9.4 Princípios de componentes
 
-- Container: `space-y-4` para espaçamento vertical entre campos.
-- Cartão do formulário: `mx-auto max-w-lg rounded-xl border border-slate-200 bg-white p-6`.
-- Erros não-vinculados a campo: bloco `rounded-lg bg-red-50 p-3 text-sm text-red-700`.
-- Rodapé de ações: `flex items-center gap-3 pt-2`.
-- Renderização: `{{ form.as_p }}` na v1; migrar para render campo a campo
-  (`{% for field in form %}`) para controle fino de classes.
+- **Botões / destaques primários:** gradiente rosa→roxo, `rounded-full` ou
+  `rounded-2xl`, texto branco, sombra suave.
+- **Cards:** `bg-emy-surface`, cantos bem arredondados (`rounded-[1.5rem]` a
+  `rounded-[2.5rem]`), sombra difusa (`shadow-[...]`).
+- **Inputs:** `rounded-2xl bg-emy-bg`, foco em `ring-2 ring-emy-pink-400`.
+  Formulários renderizam campo a campo; `type` e `category` viram radios
+  estilizados (toggle / pills).
+- **Nav:** barra inferior flutuante (`fixed bottom-5`), pílula branca com
+  blur; item ativo em gradiente de marca.
+- **Telas de auth e form de lançamento:** card dividido — painel de
+  gradiente claro de um lado, conteúdo do outro.
 
-### 9.6 Grids
-
-| Uso | Classes Tailwind |
-|---|---|
-| Cartões de resumo do dashboard | `grid grid-cols-1 gap-4 sm:grid-cols-3` |
-| Container central da página | `mx-auto max-w-5xl px-4 py-6` |
-| Linha de filtros | `flex flex-wrap items-center gap-2` |
-| Ações em linha de tabela | `flex items-center gap-3` |
-
-### 9.7 Menus / navegação
-
-- Header: `border-b border-slate-200 bg-white`.
-- Barra de navegação: `mx-auto flex max-w-5xl items-center gap-5 px-4 py-3`.
-- Marca: `text-lg font-bold text-slate-800`.
-- Item de menu: `text-sm text-slate-600 hover:text-blue-600`.
-- Item ativo: `text-sm font-semibold text-blue-600`.
-- Espaçador: `flex-1`.
-
-### 9.8 Componentes auxiliares
-
-| Componente | Classes Tailwind |
-|---|---|
-| Card | `rounded-xl border border-slate-200 bg-white p-5` |
-| Tabela | `w-full text-left text-sm` · cabeçalho: `text-xs uppercase text-slate-500` · célula: `border-b border-slate-100 px-3 py-2` |
-| Pill / badge | `rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-700` |
-| Swatch de cor | `inline-block h-3 w-3 rounded-sm align-middle` |
-| Alerta de sucesso | `rounded-lg bg-green-50 p-3 text-sm text-green-700` |
-| Alerta de erro | `rounded-lg bg-red-50 p-3 text-sm text-red-700` |
+> Os valores exatos de classe não são versionados aqui (são frágeis de
+> manter) — consultar os templates em `finances/templates/` para o detalhe.
 
 ---
 
@@ -744,23 +712,27 @@ erDiagram
   - [ ] T7.1.4 — Adicionar `theme/static/css/dist/` ao `.gitignore` e garantir
         `tailwind build` no pipeline de deploy.
 - [ ] **T7.2 — Layout base**
-  - [ ] T7.2.1 — `base.html` com header, navegação e bloco de mensagens.
-  - [ ] T7.2.2 — Aplicar tokens do design system (cores, tipografia, grids).
+  - [x] T7.2.1 — `base.html` com header, navegação e bloco de mensagens.
+        Feito: header (logo Emy + usuário + Sair), nav inferior flutuante,
+        bloco de mensagens; `<style>` inline da v1 removido.
+  - [x] T7.2.2 — Aplicar tokens do design system (cores, tipografia, grids).
+        Feito: tokens `emy-*` e fontes via `@theme` em `styles.css`.
   - [ ] T7.2.3 — Garantir responsividade mobile-first.
-- [ ] **T7.3 — Telas de autenticação**
-  - [ ] T7.3.1 — `registration/login.html`.
-  - [ ] T7.3.2 — `registration/register.html`.
-- [ ] **T7.4 — Telas de categoria**
-  - [ ] T7.4.1 — `finances/category_list.html` (tabela + ações).
-  - [ ] T7.4.2 — `finances/category_form.html`.
-- [ ] **T7.5 — Telas de transação**
-  - [ ] T7.5.1 — `finances/transaction_list.html` (tabela + filtros).
-  - [ ] T7.5.2 — `finances/transaction_form.html`.
-  - [ ] T7.5.3 — `finances/confirm_delete.html` (reuso categoria + transação).
-- [ ] **T7.6 — Dashboard**
-  - [ ] T7.6.1 — `finances/dashboard.html` com cards de resumo e tabela de
-        recentes.
-  - [ ] T7.6.2 — Sinalização visual de valores (verde/vermelho).
+- [x] **T7.3 — Telas de autenticação**
+  - [x] T7.3.1 — `registration/login.html`.
+  - [x] T7.3.2 — `registration/register.html`.
+- [x] **T7.4 — Telas de categoria**
+  - [x] T7.4.1 — `finances/category_list.html` (grid de cards + ações).
+  - [x] T7.4.2 — `finances/category_form.html`.
+- [x] **T7.5 — Telas de transação**
+  - [x] T7.5.1 — `finances/transaction_list.html` (lista + filtros por tipo).
+  - [x] T7.5.2 — `finances/transaction_form.html`.
+  - [x] T7.5.3 — `finances/confirm_delete.html` (reuso categoria + transação).
+- [x] **T7.6 — Dashboard**
+  - [x] T7.6.1 — `finances/dashboard.html` com card de saldo (gradiente) e
+        lista de recentes. Pendente: bloco "gastos por categoria" (donut +
+        lista) — exige agregado por categoria na `dashboard` view.
+  - [x] T7.6.2 — Sinalização visual de valores (verde/vermelho).
 - [ ] **T7.7 — Componentização**
   - [ ] T7.7.1 — Extrair partials reutilizáveis (`_messages.html`,
         `_form_field.html`).

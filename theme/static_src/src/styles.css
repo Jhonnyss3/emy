@@ -8,3 +8,41 @@
   * the scope of this path.
   */
 @source "../../../**/*.{html,py,js}";
+
+/* Emy design tokens — Petal variation */
+@theme {
+  --color-emy-bg: #FBF3F1;
+  --color-emy-bg-warm: #F6E9E4;
+  --color-emy-bg-deep: #F3DDDB;
+  --color-emy-surface: #FFFFFF;
+  --color-emy-ink: #2A1A36;
+  --color-emy-ink-soft: #5E4861;
+  --color-emy-ink-mute: #8B7A8E;
+  --color-emy-line: rgba(42, 26, 54, 0.08);
+  --color-emy-line-2: rgba(42, 26, 54, 0.14);
+
+  --color-emy-pink-50: #FDF2F8;
+  --color-emy-pink-100: #FCE7F3;
+  --color-emy-pink-200: #FBCFE8;
+  --color-emy-pink-300: #F9A8D4;
+  --color-emy-pink-400: #F472B6;
+  --color-emy-pink-500: #EC4899;
+  --color-emy-pink-600: #DB2777;
+  --color-emy-pink-700: #BE185D;
+
+  --color-emy-purple-50: #F5F3FF;
+  --color-emy-purple-100: #EDE9FE;
+  --color-emy-purple-200: #DDD6FE;
+  --color-emy-purple-300: #C4B5FD;
+  --color-emy-purple-400: #A78BFA;
+  --color-emy-purple-500: #8B5CF6;
+  --color-emy-purple-600: #7C3AED;
+  --color-emy-purple-700: #6D28D9;
+
+  --color-emy-good: #10B981;
+  --color-emy-bad: #E11D48;
+
+  --font-sans: "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-serif: "Instrument Serif", serif;
+  --font-script: "Caveat", cursive;
+}

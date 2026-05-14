@@ -1,20 +1,88 @@
 {% extends "base.html" %}
-{% block title %}{{ title }} - Finances{% endblock %}
+{% block title %}{% if form.instance.pk %}Editar categoria{% else %}Nova categoria{% endif %} - Emy{% endblock %}
 
 {% block content %}
-<div class="card" style="max-width:520px;">
-    <h2 style="margin-top:0;">{{ title }}</h2>
-    {% if form.non_field_errors %}
-        <ul class="errorlist">
-            {% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}
-        </ul>
-    {% endif %}
-    <form method="post" novalidate>
+<div class="mx-auto max-w-lg">
+    <div class="mb-5">
+        <h1 class="text-3xl font-extrabold tracking-tight">
+            {% if form.instance.pk %}Editar categoria{% else %}Nova categoria ✨{% endif %}
+        </h1>
+        <p class="mt-1 text-sm text-emy-ink-soft">Dê um nome, um tipo e uma cor.</p>
+    </div>
+
+    <form method="post" novalidate
+          class="rounded-[2rem] bg-emy-surface p-6 shadow-[0_30px_80px_-30px_rgba(42,26,54,0.45)] sm:p-8">
         {% csrf_token %}
-        {{ form.as_p }}
-        <div class="actions">
-            <button class="btn" type="submit">Save</button>
-            <a class="btn secondary" href="{% url 'finances:category_list' %}">Cancel</a>
+
+        {% if form.non_field_errors %}
+            <div class="mb-5 rounded-2xl bg-emy-bad/10 px-4 py-3 text-sm text-emy-bad">
+                {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+            </div>
+        {% endif %}
+
+        <div class="space-y-5">
+            <div>
+                <label for="id_name" class="mb-1 block text-sm font-semibold text-emy-ink-soft">Nome</label>
+                <input type="text" name="name" id="id_name" required value="{{ form.name.value|default:'' }}"
+                       placeholder="Mercado"
+                       class="w-full rounded-2xl bg-emy-bg px-4 py-3 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">
+                {% for error in form.name.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
+            </div>
+
+            <div>
+                <p class="mb-1 text-sm font-semibold text-emy-ink-soft">Tipo</p>
+                <div class="flex gap-2">
+                    <label class="flex-1 cursor-pointer">
+                        <input type="radio" name="type" value="expense" class="peer sr-only"
+                               {% if form.type.value == 'expense' or not form.type.value %}checked{% endif %}>
+                        <span class="block rounded-2xl bg-emy-bg py-3 text-center text-sm font-bold text-emy-ink-soft transition peer-checked:bg-gradient-to-br peer-checked:from-emy-pink-500 peer-checked:to-emy-purple-500 peer-checked:text-white">
+                            ↓ Despesa
+                        </span>
+                    </label>
+                    <label class="flex-1 cursor-pointer">
+                        <input type="radio" name="type" value="income" class="peer sr-only"
+                               {% if form.type.value == 'income' %}checked{% endif %}>
+                        <span class="block rounded-2xl bg-emy-bg py-3 text-center text-sm font-bold text-emy-ink-soft transition peer-checked:bg-gradient-to-br peer-checked:from-emy-good peer-checked:to-emy-good peer-checked:text-white">
+                            ↑ Receita
+                        </span>
+                    </label>
+                </div>
+                {% for error in form.type.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label for="id_color" class="mb-1 block text-sm font-semibold text-emy-ink-soft">Cor</label>
+                    <input type="color" name="color" id="id_color" value="{{ form.color.value|default:'#EC4899' }}"
+                           class="h-12 w-full cursor-pointer rounded-2xl bg-emy-bg p-1 ring-1 ring-emy-line">
+                    {% for error in form.color.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
+                </div>
+                <div>
+                    <label for="id_icon" class="mb-1 block text-sm font-semibold text-emy-ink-soft">Ícone</label>
+                    <input type="text" name="icon" id="id_icon" value="{{ form.icon.value|default:'' }}"
+                           placeholder="Opcional"
+                           class="w-full rounded-2xl bg-emy-bg px-4 py-3 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">
+                    {% for error in form.icon.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
+                </div>
+            </div>
+
+            <label class="flex items-center gap-3">
+                <input type="checkbox" name="is_active" value="on"
+                       {% if form.is_active.value %}checked{% endif %}
+                       class="h-5 w-5 rounded-md accent-emy-pink-500">
+                <span class="text-sm font-semibold text-emy-ink-soft">Categoria ativa</span>
+            </label>
+        </div>
+
+        <div class="mt-8 flex items-center gap-3">
+            <a href="{% url 'finances:category_list' %}"
+               class="rounded-2xl bg-emy-bg px-5 py-3 text-sm font-bold text-emy-ink-soft transition hover:bg-emy-bg-warm">
+                Cancelar
+            </a>
+            <button type="submit"
+                    class="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 px-5 py-3 text-sm font-bold text-white shadow-[0_14px_30px_-10px_rgba(139,92,246,0.6)] transition hover:opacity-95">
+                ✓ Salvar categoria
+            </button>
         </div>
     </form>
 </div>

@@ -1,16 +1,28 @@
 {% extends "base.html" %}
-{% block title %}{{ title }} - Finances{% endblock %}
+{% block title %}Confirmar exclusão - Emy{% endblock %}
 
 {% block content %}
-<div class="card" style="max-width:480px;">
-    <h2 style="margin-top:0;">{{ title }}</h2>
-    <p>Are you sure you want to delete <strong>{{ object }}</strong>?</p>
-    <form method="post">
-        {% csrf_token %}
-        <div class="actions">
-            <button class="btn danger" type="submit">Delete</button>
-            <a class="btn secondary" href="javascript:history.back()">Cancel</a>
-        </div>
-    </form>
+<div class="mx-auto max-w-md">
+    <div class="rounded-[2rem] bg-emy-surface p-7 text-center shadow-[0_30px_80px_-30px_rgba(42,26,54,0.45)] sm:p-8">
+        <div class="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-emy-bad/10 text-2xl">🗑️</div>
+        <h1 class="mt-4 text-2xl font-extrabold tracking-tight">
+            Excluir {% if object._meta.model_name == 'category' %}categoria{% else %}lançamento{% endif %}?
+        </h1>
+        <p class="mt-2 text-sm text-emy-ink-soft">
+            Tem certeza que deseja excluir <strong class="text-emy-ink">{{ object }}</strong>?
+            Essa ação não pode ser desfeita.
+        </p>
+        <form method="post" class="mt-6 flex items-center justify-center gap-3">
+            {% csrf_token %}
+            <a href="javascript:history.back()"
+               class="rounded-2xl bg-emy-bg px-5 py-3 text-sm font-bold text-emy-ink-soft transition hover:bg-emy-bg-warm">
+                Cancelar
+            </a>
+            <button type="submit"
+                    class="rounded-2xl bg-emy-bad px-5 py-3 text-sm font-bold text-white shadow-[0_14px_30px_-10px_rgba(225,29,72,0.6)] transition hover:opacity-95">
+                Excluir
+            </button>
+        </form>
+    </div>
 </div>
 {% endblock %}

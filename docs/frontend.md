@@ -8,19 +8,41 @@
 - O app `theme` foi criado por `python manage.py tailwind init` (template
   "Tailwind v4 Standalone").
 - Fonte do CSS: `theme/static_src/src/styles.css` — contém
-  `@import "tailwindcss"` e a diretiva `@source` que faz o Tailwind escanear
-  os `.html/.py/.js` do projeto em busca de classes utilitárias.
+  `@import "tailwindcss"`, a diretiva `@source` que faz o Tailwind escanear
+  os `.html/.py/.js` do projeto, e um bloco `@theme` com os tokens de design
+  Emy (ver abaixo).
 - CSS compilado: `theme/static/css/dist/styles.css` — artefato de build, está
   no `.gitignore`; o build precisa rodar no deploy.
 - Settings: `INSTALLED_APPS` inclui `tailwind` e `theme`;
   `TAILWIND_APP_NAME = 'theme'`.
-- `finances/templates/base.html` carrega o CSS via `{% load tailwind_tags %}`
+- `finances/templates/base.html` carrega as fontes do Google (Plus Jakarta
+  Sans, Instrument Serif, Caveat) e o CSS via `{% load tailwind_tags %}`
   + `{% tailwind_css %}` no `<head>`.
 
 ### Comandos
 
-- `python manage.py tailwind build` — build único.
+- `python manage.py tailwind build` — build único. **Rodar sempre que mexer
+  em template ou em `styles.css`**, senão as classes novas não entram no CSS.
 - `python manage.py tailwind start` — modo watch para desenvolvimento.
+
+## Design tokens — Emy / Petal
+
+Os tokens vivem no bloco `@theme` de `theme/static_src/src/styles.css` e são
+usados como classes utilitárias normais (`bg-emy-bg`, `text-emy-pink-600`,
+`font-serif` etc.).
+
+- **Cores:** `emy-bg` / `emy-bg-warm` / `emy-bg-deep` (off-whites rosados),
+  `emy-surface` (branco), `emy-ink` / `emy-ink-soft` / `emy-ink-mute`
+  (tinta roxo-escuro), `emy-line` / `emy-line-2` (divisórias),
+  `emy-pink-50..700`, `emy-purple-50..700`, `emy-good` (verde) e
+  `emy-bad` (vermelho).
+- **Fontes:** `font-sans` → Plus Jakarta Sans (corpo), `font-serif` →
+  Instrument Serif (destaques editoriais), `font-script` → Caveat
+  (toques manuscritos).
+- **Identidade "Petal":** off-white rosado, soft/feminino com glow, cards
+  bem arredondados (`rounded-[2rem]` e afins), gradiente rosa→roxo
+  (`from-emy-pink-500 to-emy-purple-500`) em botões/destaques, nav inferior
+  flutuante.
 
 ## Templates
 
@@ -30,27 +52,46 @@ pelo app `finances`, que tem o seu próprio `base.html`.
 
 | Template | Conteúdo |
 |---|---|
-| `base.html` | Layout base com header, navegação e bloco de mensagens. |
-| `finances/dashboard.html` | Cards de resumo + tabela de recentes. |
-| `finances/transaction_list.html` | Tabela de transações + filtros por tipo. |
-| `finances/transaction_form.html` | Formulário de criação/edição de transação. |
-| `finances/category_list.html` | Tabela de categorias. |
-| `finances/category_form.html` | Formulário de criação/edição de categoria. |
+| `base.html` | Header (logo Emy + usuário + Sair), nav inferior flutuante, bloco de mensagens. Estilização 100% Tailwind. |
+| `finances/dashboard.html` | Saudação, card de saldo com gradiente (saldo/entrou/saiu) + lista de lançamentos recentes. |
+| `finances/transaction_list.html` | Pills de filtro por tipo + lista de transações em cards arredondados. |
+| `finances/transaction_form.html` | Card dividido: toggle Despesa/Receita, valor grande, pills de categoria, data, método, observações. |
+| `finances/category_list.html` | Grid de cards de categoria. |
+| `finances/category_form.html` | Formulário de categoria (toggle de tipo, cor, ícone, ativo). |
 | `finances/confirm_delete.html` | Confirmação de exclusão (reusado por transação e categoria). |
-| `registration/login.html` | Tela de login. |
-| `registration/register.html` | Tela de cadastro. |
+| `registration/login.html` | Tela de login (card dividido com painel de gradiente). |
+| `registration/register.html` | Tela de cadastro (mesmo padrão do login). |
+
+### Renderização de formulários
+
+Os formulários renderizam cada campo manualmente (não usam `{{ form.as_p }}`)
+para ter controle total das classes Tailwind sem tocar em `forms.py`/`views.py`:
+cada `<input>`/`<select>` tem o `name=` correto, o valor é reposto via
+`form.<campo>.value` e os erros via `form.<campo>.errors`. Os campos `type` e
+`category` viram radios estilizados (toggle e pills).
 
 ## Estado atual da UI
 
-O TailwindCSS já está instalado, configurado e carregado no `base.html`. A
-**conversão dos templates** para classes utilitárias do Tailwind ainda é
-trabalho pendente — o `base.html` mantém um bloco `<style>` com CSS inline
-herdado da v1, que coexiste com o Tailwind até a migração tela a tela
-acontecer.
+Os templates foram migrados da v1 (CSS inline) para a identidade visual
+**Emy — variação "Petal"**, escolhida entre três explorações de design
+(Soft Bloom / Petal / Aurora). O bloco `<style>` inline foi removido do
+`base.html`; toda a estilização é via classes Tailwind + tokens `emy-*`.
 
-Ao criar template novo, preferir classes Tailwind. Ao editar template
-existente, manter coerência com o que já está lá até a migração acontecer. O
-design system de referência (cores, tipografia, botões, inputs, grids) está
-no [PRD.md](../PRD.md), seção 9.
-</content>
-</invoke>
+A migração cobriu **apenas as telas com model atual** (`Category` e
+`Transaction`). Features que aparecem no mock de design mas não têm model —
+Cartões/faturas, Metas, Insights, Transferência, Recorrência, busca global,
+"remember-me" e recuperação de senha — **não** foram incluídas.
+
+Pendências de UI conhecidas:
+
+- O dashboard não tem o bloco "gastos por categoria" (donut + lista) do mock:
+  cabe nos models atuais, mas exige um agregado por categoria na `dashboard`
+  view.
+- `get_type_display` / `get_payment_method_display` retornam rótulos em
+  inglês (labels dos `choices` do model); nos templates isso é contornado
+  com pt-BR manual. Correção real seria nos `choices` do model.
+- Valores monetários usam `floatformat:2` (ex.: `4832.17`); o formato pt-BR
+  (`4.832,17`) depende de configuração de locale.
+
+Ao criar template novo, usar classes Tailwind e os tokens Emy. Ao editar um
+existente, manter coerência com o padrão Petal já aplicado.

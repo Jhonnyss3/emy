@@ -1,21 +1,119 @@
 {% extends "base.html" %}
-{% block title %}{{ title }} - Finances{% endblock %}
+{% block title %}{% if form.instance.pk %}Editar lançamento{% else %}Novo lançamento{% endif %} - Emy{% endblock %}
 
 {% block content %}
-<div class="card" style="max-width:520px;">
-    <h2 style="margin-top:0;">{{ title }}</h2>
-    {% if form.non_field_errors %}
-        <ul class="errorlist">
-            {% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}
-        </ul>
-    {% endif %}
-    <form method="post" novalidate>
-        {% csrf_token %}
-        {{ form.as_p }}
-        <div class="actions">
-            <button class="btn" type="submit">Save</button>
-            <a class="btn secondary" href="{% url 'finances:transaction_list' %}">Cancel</a>
+<form method="post" novalidate
+      class="grid overflow-hidden rounded-[2.5rem] bg-emy-surface shadow-[0_30px_80px_-30px_rgba(42,26,54,0.45)] md:grid-cols-2">
+    {% csrf_token %}
+
+    <div class="bg-gradient-to-br from-emy-pink-100 via-emy-pink-50 to-emy-purple-100 p-8 sm:p-10">
+        <h1 class="text-3xl font-extrabold tracking-tight">
+            {% if form.instance.pk %}Editar lançamento{% else %}Novo lançamento ✨{% endif %}
+        </h1>
+        <p class="mt-1 text-sm text-emy-ink-soft">
+            {% if form.instance.pk %}Ajuste o que precisar.{% else %}Rapidinho, prometo.{% endif %}
+        </p>
+
+        {% if form.non_field_errors %}
+            <div class="mt-5 rounded-2xl bg-emy-bad/10 px-4 py-3 text-sm text-emy-bad">
+                {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+            </div>
+        {% endif %}
+
+        <div class="mt-6 flex gap-2">
+            <label class="flex-1 cursor-pointer">
+                <input type="radio" name="type" value="expense" class="peer sr-only"
+                       {% if form.type.value == 'expense' or not form.type.value %}checked{% endif %}>
+                <span class="block rounded-2xl bg-white/70 py-3 text-center text-sm font-bold text-emy-ink-soft transition peer-checked:bg-gradient-to-br peer-checked:from-emy-pink-500 peer-checked:to-emy-purple-500 peer-checked:text-white">
+                    ↓ Despesa
+                </span>
+            </label>
+            <label class="flex-1 cursor-pointer">
+                <input type="radio" name="type" value="income" class="peer sr-only"
+                       {% if form.type.value == 'income' %}checked{% endif %}>
+                <span class="block rounded-2xl bg-white/70 py-3 text-center text-sm font-bold text-emy-ink-soft transition peer-checked:bg-gradient-to-br peer-checked:from-emy-good peer-checked:to-emy-good peer-checked:text-white">
+                    ↑ Receita
+                </span>
+            </label>
         </div>
-    </form>
-</div>
+        {% for error in form.type.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
+
+        <div class="mt-6">
+            <p class="text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Quanto foi?</p>
+            <div class="mt-2 flex items-baseline gap-2">
+                <span class="text-2xl font-bold text-emy-ink-mute">R$</span>
+                <input type="number" name="amount" step="0.01" min="0.01" required
+                       value="{{ form.amount.value|default:'' }}" placeholder="0,00"
+                       class="w-full bg-transparent text-5xl font-extrabold text-emy-ink outline-none placeholder:text-emy-ink-mute/40">
+            </div>
+            {% for error in form.amount.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
+        </div>
+
+        <div class="mt-6">
+            <label for="id_description" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">O que foi?</label>
+            <input type="text" name="description" id="id_description" required
+                   value="{{ form.description.value|default:'' }}" placeholder="Compra da semana — Hortifruti"
+                   class="w-full rounded-2xl bg-white/80 px-4 py-3 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">
+            {% for error in form.description.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
+        </div>
+    </div>
+
+    <div class="p-8 sm:p-10">
+        <p class="text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Categoria</p>
+        <div class="mt-2 flex flex-wrap gap-2">
+            {% for cat in form.category.field.queryset %}
+                <label class="cursor-pointer">
+                    <input type="radio" name="category" value="{{ cat.pk }}" class="peer sr-only"
+                           {% if form.category.value|stringformat:'s' == cat.pk|stringformat:'s' %}checked{% endif %}>
+                    <span class="flex items-center gap-1.5 rounded-full bg-emy-bg px-3 py-1.5 text-sm font-semibold text-emy-ink-soft transition peer-checked:bg-gradient-to-br peer-checked:from-emy-pink-500 peer-checked:to-emy-purple-500 peer-checked:text-white">
+                        <span class="h-2 w-2 rounded-full" style="background:{{ cat.color }}"></span>{{ cat.name }}
+                    </span>
+                </label>
+            {% empty %}
+                <p class="text-sm text-emy-ink-soft">
+                    Nenhuma categoria ativa.
+                    <a href="{% url 'finances:category_create' %}" class="font-bold text-emy-pink-600 hover:underline">Criar uma</a>
+                </p>
+            {% endfor %}
+        </div>
+        {% for error in form.category.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
+
+        <div class="mt-6 grid grid-cols-2 gap-4">
+            <div>
+                <label for="id_date" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Data</label>
+                <input type="date" name="date" id="id_date" required value="{{ form.date.value|default:'' }}"
+                       class="w-full rounded-2xl bg-emy-bg px-4 py-3 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">
+                {% for error in form.date.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
+            </div>
+            <div>
+                <label for="id_payment_method" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Pago com</label>
+                <select name="payment_method" id="id_payment_method"
+                        class="w-full rounded-2xl bg-emy-bg px-4 py-3 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">
+                    {% for value, label in form.payment_method.field.choices %}
+                        <option value="{{ value }}" {% if form.payment_method.value == value %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                {% for error in form.payment_method.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
+            </div>
+        </div>
+
+        <div class="mt-6">
+            <label for="id_notes" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Observações</label>
+            <textarea name="notes" id="id_notes" rows="3" placeholder="Opcional"
+                      class="w-full rounded-2xl bg-emy-bg px-4 py-3 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">{{ form.notes.value|default:'' }}</textarea>
+            {% for error in form.notes.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
+        </div>
+
+        <div class="mt-8 flex items-center gap-3">
+            <a href="{% url 'finances:transaction_list' %}"
+               class="rounded-2xl bg-emy-bg px-5 py-3 text-sm font-bold text-emy-ink-soft transition hover:bg-emy-bg-warm">
+                Cancelar
+            </a>
+            <button type="submit"
+                    class="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 px-5 py-3 text-sm font-bold text-white shadow-[0_14px_30px_-10px_rgba(139,92,246,0.6)] transition hover:opacity-95">
+                ✓ Salvar lançamento
+            </button>
+        </div>
+    </div>
+</form>
 {% endblock %}

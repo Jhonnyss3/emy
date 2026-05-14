@@ -1,47 +1,62 @@
 {% extends "base.html" %}
-{% block title %}Dashboard - Finances{% endblock %}
+{% block title %}Início - Emy{% endblock %}
 
 {% block content %}
-<div class="card">
-    <h2 style="margin-top:0;">Summary for {{ today|date:"F Y" }}</h2>
-    <div class="grid">
+<div class="mb-6">
+    <h1 class="text-3xl font-extrabold tracking-tight">Olá, {{ user.username }} ✨</h1>
+    <p class="mt-1 text-sm text-emy-ink-soft">Aqui está o seu mês em pedacinhos.</p>
+</div>
+
+<div class="rounded-[2rem] bg-gradient-to-br from-emy-pink-500 to-emy-purple-600 p-6 text-white shadow-[0_24px_60px_-24px_rgba(139,92,246,0.7)] sm:p-8">
+    <div class="flex flex-wrap items-start justify-between gap-4">
         <div>
-            <div class="muted">Income</div>
-            <div class="stat income">+ {{ income }}</div>
+            <p class="text-xs font-semibold uppercase tracking-wider text-white/70">Saldo · {{ today|date:"F Y" }}</p>
+            <p class="mt-2 text-4xl font-extrabold sm:text-5xl">R$ {{ balance|floatformat:2 }}</p>
         </div>
-        <div>
-            <div class="muted">Expense</div>
-            <div class="stat expense">- {{ expense }}</div>
+        <a href="{% url 'finances:transaction_create' %}"
+           class="rounded-full bg-white/95 px-5 py-2.5 text-sm font-bold text-emy-pink-600 shadow-md transition hover:bg-white">
+            + Lançar
+        </a>
+    </div>
+    <div class="mt-6 grid grid-cols-2 gap-3">
+        <div class="rounded-2xl bg-white/15 p-4">
+            <p class="text-xs font-semibold uppercase tracking-wider text-white/70">Entrou</p>
+            <p class="mt-1 text-xl font-bold">R$ {{ income|floatformat:2 }}</p>
         </div>
-        <div>
-            <div class="muted">Balance</div>
-            <div class="stat">{{ balance }}</div>
+        <div class="rounded-2xl bg-white/15 p-4">
+            <p class="text-xs font-semibold uppercase tracking-wider text-white/70">Saiu</p>
+            <p class="mt-1 text-xl font-bold">R$ {{ expense|floatformat:2 }}</p>
         </div>
     </div>
 </div>
 
-<div class="card">
-    <div class="actions" style="justify-content:space-between;">
-        <h3 style="margin:0;">Recent transactions</h3>
-        <a class="btn" href="{% url 'finances:transaction_create' %}">+ New transaction</a>
+<div class="mt-5 rounded-[2rem] bg-emy-surface p-6 shadow-[0_20px_50px_-30px_rgba(42,26,54,0.4)] sm:p-7">
+    <div class="flex items-center justify-between">
+        <h2 class="text-lg font-extrabold tracking-tight">Lançamentos recentes</h2>
+        <a href="{% url 'finances:transaction_list' %}" class="text-sm font-bold text-emy-pink-600 hover:underline">Ver todos</a>
     </div>
-    <table style="margin-top:14px;">
-        <thead>
-            <tr><th>Date</th><th>Description</th><th>Category</th><th>Type</th><th>Amount</th></tr>
-        </thead>
-        <tbody>
-            {% for t in recent %}
-            <tr>
-                <td>{{ t.date }}</td>
-                <td>{{ t.description }}</td>
-                <td><span class="swatch" style="background:{{ t.category.color }}"></span>{{ t.category.name }}</td>
-                <td><span class="pill">{{ t.get_type_display }}</span></td>
-                <td class="{{ t.type }}">{{ t.signed_amount }}</td>
-            </tr>
-            {% empty %}
-            <tr><td colspan="5" class="muted">No transactions yet.</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
+
+    <div class="mt-4 space-y-1">
+        {% for t in recent %}
+            <a href="{% url 'finances:transaction_update' t.pk %}"
+               class="flex items-center gap-3 rounded-2xl px-3 py-3 transition hover:bg-emy-bg">
+                <span class="h-9 w-9 shrink-0 rounded-xl" style="background:{{ t.category.color }}"></span>
+                <div class="min-w-0 flex-1">
+                    <p class="truncate text-sm font-semibold">{{ t.description }}</p>
+                    <p class="text-xs text-emy-ink-mute">{{ t.category.name }} · {{ t.date|date:"d M Y" }}</p>
+                </div>
+                <span class="shrink-0 text-sm font-bold {% if t.type == 'income' %}text-emy-good{% else %}text-emy-bad{% endif %}">
+                    {% if t.type == 'income' %}+{% else %}−{% endif %} R$ {{ t.amount|floatformat:2 }}
+                </span>
+            </a>
+        {% empty %}
+            <div class="rounded-2xl bg-emy-bg px-4 py-8 text-center">
+                <p class="text-sm text-emy-ink-soft">Nenhum lançamento ainda.</p>
+                <a href="{% url 'finances:transaction_create' %}" class="mt-2 inline-block text-sm font-bold text-emy-pink-600 hover:underline">
+                    Lançar o primeiro
+                </a>
+            </div>
+        {% endfor %}
+    </div>
 </div>
 {% endblock %}

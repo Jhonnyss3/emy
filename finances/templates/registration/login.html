@@ -1,21 +1,85 @@
 {% extends "base.html" %}
-{% block title %}Log in - Finances{% endblock %}
+{% block title %}Entrar - Emy{% endblock %}
 
 {% block content %}
-<div class="card" style="max-width:400px; margin:40px auto;">
-    <h2 style="margin-top:0;">Log in</h2>
-    {% if form.non_field_errors %}
-        <ul class="errorlist">
-            {% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}
-        </ul>
-    {% endif %}
-    <form method="post">
-        {% csrf_token %}
-        {{ form.as_p }}
-        <button class="btn" type="submit">Log in</button>
-    </form>
-    <p class="muted" style="margin-bottom:0;">
-        No account? <a href="{% url 'register' %}">Sign up</a>
-    </p>
+<div class="flex min-h-[78vh] items-center justify-center">
+    <div class="grid w-full max-w-3xl overflow-hidden rounded-[2.5rem] bg-emy-surface shadow-[0_30px_80px_-30px_rgba(42,26,54,0.45)] md:grid-cols-2">
+
+        <div class="relative hidden flex-col justify-between bg-gradient-to-br from-emy-pink-100 via-emy-pink-50 to-emy-purple-100 p-10 md:flex">
+            <div class="flex items-center gap-2">
+                <span class="grid h-9 w-9 place-items-center rounded-2xl bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 text-base font-extrabold text-white">e</span>
+                <span class="text-xl font-extrabold tracking-tight">emy</span>
+            </div>
+            <div class="relative my-8 grid place-items-center">
+                <div class="grid h-44 w-44 place-items-center rounded-full bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 shadow-[0_20px_50px_-15px_rgba(139,92,246,0.6)]">
+                    <svg class="h-16 w-16 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M12 21s-7.5-4.6-10-9.3C.4 8.3 2.3 5 5.7 5c2 0 3.4 1.1 4.3 2.4C10.9 6.1 12.3 5 14.3 5c3.4 0 5.3 3.3 3.7 6.7C19.5 16.4 12 21 12 21z"/>
+                    </svg>
+                </div>
+                <span class="absolute -right-1 top-3 h-12 w-12 rounded-full bg-emy-pink-100"></span>
+                <span class="absolute -left-2 bottom-1 h-9 w-9 rounded-full bg-emy-purple-200"></span>
+            </div>
+            <div>
+                <h2 class="text-2xl font-extrabold leading-tight">Pequenas escolhas,<br><span class="text-emy-purple-600">grandes conquistas.</span></h2>
+                <p class="mt-2 font-script text-2xl text-emy-pink-600">seu eu de amanhã agradece 💗</p>
+            </div>
+        </div>
+
+        <div class="p-8 sm:p-10">
+            <h1 class="text-3xl font-extrabold tracking-tight">Oiii! 👋</h1>
+            <p class="mt-1 text-sm text-emy-ink-soft">Que bom te ver de novo! Vamos continuar?</p>
+
+            {% if form.non_field_errors %}
+                <div class="mt-5 rounded-2xl bg-emy-bad/10 px-4 py-3 text-sm text-emy-bad">
+                    {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+                </div>
+            {% endif %}
+
+            <form method="post" class="mt-6 space-y-4">
+                {% csrf_token %}
+                <div>
+                    <label for="id_username" class="mb-1 block text-sm font-semibold text-emy-ink-soft">Usuário</label>
+                    <input type="text" name="username" id="id_username" value="{{ form.username.value|default:'' }}" autofocus required
+                           class="w-full rounded-2xl bg-emy-bg px-4 py-3 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">
+                    {% for error in form.username.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
+                </div>
+                <div>
+                    <label for="id_password" class="mb-1 block text-sm font-semibold text-emy-ink-soft">Senha</label>
+                    <div class="relative">
+                        <input type="password" name="password" id="id_password" required
+                               class="w-full rounded-2xl bg-emy-bg px-4 py-3 pr-11 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">
+                        <button type="button" id="toggle-password" aria-label="Mostrar senha"
+                                class="absolute right-3 top-1/2 -translate-y-1/2 text-emy-ink-mute transition hover:text-emy-ink">
+                            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>
+                            </svg>
+                        </button>
+                    </div>
+                    {% for error in form.password.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
+                </div>
+                <button type="submit"
+                        class="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 px-4 py-3.5 text-sm font-bold text-white shadow-[0_14px_30px_-10px_rgba(139,92,246,0.6)] transition hover:opacity-95">
+                    Entrar no Emy <span aria-hidden="true">→</span>
+                </button>
+            </form>
+
+            <p class="mt-6 text-center text-sm text-emy-ink-soft">
+                Ainda não tem conta?
+                <a href="{% url 'register' %}" class="font-bold text-emy-pink-600 hover:underline">Criar uma agora</a>
+            </p>
+        </div>
+    </div>
 </div>
+
+<script>
+    (function () {
+        var btn = document.getElementById('toggle-password');
+        var input = document.getElementById('id_password');
+        if (btn && input) {
+            btn.addEventListener('click', function () {
+                input.type = input.type === 'password' ? 'text' : 'password';
+            });
+        }
+    })();
+</script>
 {% endblock %}

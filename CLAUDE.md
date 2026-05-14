@@ -174,12 +174,12 @@ Autenticação usa o `User` nativo de `django.contrib.auth` — não há app `ac
 
 - **TailwindCSS v4 via `django-tailwind` no modo standalone** — não há Node.js nem `npm` no projeto. O `pytailwindcss` baixa o binário standalone do Tailwind CLI; o `django-tailwind` o orquestra.
 - O app `theme` foi criado por `python manage.py tailwind init` (template "Tailwind v4 Standalone").
-- Fonte do CSS: `theme/static_src/src/styles.css` — contém `@import "tailwindcss"` e a diretiva `@source` que faz o Tailwind escanear todos os `.html/.py/.js` do projeto em busca de classes utilitárias.
-- CSS compilado: `theme/static/css/dist/styles.css` — **artefato de build**; deve ir para o `.gitignore` quando o repositório for inicializado, e o build precisa rodar no deploy.
+- Fonte do CSS: `theme/static_src/src/styles.css` — contém `@import "tailwindcss"`, a diretiva `@source` que faz o Tailwind escanear todos os `.html/.py/.js` do projeto, e um bloco `@theme` com os **tokens de design Emy**: cores `emy-*` (`emy-bg`, `emy-ink`, `emy-pink-*`, `emy-purple-*`, `emy-good`, `emy-bad` etc.) e fontes `font-sans` (Plus Jakarta Sans), `font-serif` (Instrument Serif), `font-script` (Caveat).
+- CSS compilado: `theme/static/css/dist/styles.css` — **artefato de build** (no `.gitignore`); o build precisa rodar no deploy. **Recompilar com `python manage.py tailwind build` sempre que mexer em template ou em `styles.css`.**
 - Settings: `INSTALLED_APPS` inclui `tailwind` e `theme`; `TAILWIND_APP_NAME = 'theme'`.
-- `finances/templates/base.html` carrega o CSS via `{% load tailwind_tags %}` + `{% tailwind_css %}` no `<head>`.
+- `finances/templates/base.html` carrega as fontes do Google (Plus Jakarta Sans, Instrument Serif, Caveat) e o CSS via `{% load tailwind_tags %}` + `{% tailwind_css %}` no `<head>`.
 - Comandos: `python manage.py tailwind build` (build único) e `python manage.py tailwind start` (modo watch no desenvolvimento).
-- **Estado atual da UI:** o `base.html` ainda mantém um bloco `<style>` com CSS inline, herdado da v1. O Tailwind está instalado e carregado, pronto para uso, mas a conversão dos templates para classes utilitárias do Tailwind (conforme o design system do PRD, seção 9) ainda é trabalho pendente — Sprint 7 do PRD. Ao criar template novo, preferir classes Tailwind; ao editar template existente, manter coerência com o que já está lá até a migração acontecer.
+- **Estado atual da UI:** os templates foram migrados para a identidade visual **Emy — variação "Petal"**: off-white rosado, soft/feminino com glow, cards bem arredondados, gradiente rosa→roxo, nav inferior flutuante. O bloco `<style>` inline da v1 foi **removido** do `base.html` — toda estilização agora é via classes utilitárias do Tailwind + tokens `emy-*`. Escopo da migração: apenas as telas cobertas pelos models atuais (`Category`/`Transaction`); features do mock sem model (Cartões, Metas, Insights, Transferência, Recorrência) ficaram de fora. Ao criar/editar templates, usar classes Tailwind e os tokens Emy.
 
 ---
 
@@ -296,15 +296,17 @@ Feedback de sucesso/erro é dado via `django.contrib.messages` após cada ação
 
 `APP_DIRS=True` — templates ficam em `finances/templates/`. O `theme/templates/base.html` é gerado pelo `django-tailwind` e não é usado pelo app `finances` (que tem o seu próprio `base.html`).
 
-- `base.html` — layout base com header, navegação, bloco de mensagens; carrega o Tailwind via `{% tailwind_css %}` e ainda mantém um bloco `<style>` inline herdado da v1 (ver seção Frontend / TailwindCSS).
-- `finances/dashboard.html` — cards de resumo + tabela de recentes.
-- `finances/transaction_list.html` — tabela de transações + filtros por tipo.
-- `finances/transaction_form.html` — formulário de criação/edição de transação.
-- `finances/category_list.html` — tabela de categorias.
-- `finances/category_form.html` — formulário de criação/edição de categoria.
-- `finances/confirm_delete.html` — confirmação de exclusão (reusado por transação e categoria).
-- `registration/login.html` — tela de login.
-- `registration/register.html` — tela de cadastro.
+Todos os templates abaixo já estão na identidade visual Emy/Petal (ver seção Frontend / TailwindCSS).
+
+- `base.html` — layout base: header (logo Emy + usuário + Sair), nav inferior flutuante (Início / Lançamentos / Categorias / botão `+`, com item ativo via `request.resolver_match`), bloco de mensagens. Estilização 100% Tailwind, sem `<style>` inline.
+- `finances/dashboard.html` — saudação, card de saldo com gradiente (saldo/entrou/saiu) + lista de lançamentos recentes.
+- `finances/transaction_list.html` — pills de filtro por tipo + lista de transações em cards arredondados.
+- `finances/transaction_form.html` — card dividido: toggle Despesa/Receita, valor grande, pills de categoria, data, método de pagamento e observações.
+- `finances/category_list.html` — grid de cards de categoria.
+- `finances/category_form.html` — formulário de criação/edição de categoria (toggle de tipo, cor, ícone, ativo).
+- `finances/confirm_delete.html` — confirmação de exclusão (reusado por transação e categoria; título derivado de `object._meta.model_name`).
+- `registration/login.html` — tela de login (card dividido com painel de gradiente).
+- `registration/register.html` — tela de cadastro (mesmo padrão do login).
 
 ---
 
@@ -351,4 +353,5 @@ Feedback de sucesso/erro é dado via `django.contrib.messages` após cada ação
 - **`TransactionForm` recebe `user` por kwarg**: o form precisa do usuário para (a) filtrar o seletor de categorias e (b) preencher `instance.user` antes do `Model.clean()`. Passar via `__init__` mantém o form desacoplado do `request`.
 - **Isolamento por `request.user` em vez de sistema de permissões**: o produto é single-tenant por conta — cada usuário só vê o que é seu. Não há perfis nem matriz de permissões; o filtro por `user` em cada query é a única barreira e é obrigatório.
 - **TailwindCSS no modo standalone (sem Node.js)**: optou-se por `django-tailwind` 4.x + `pytailwindcss` em vez do modo "full" que exige Node/npm. Mantém o ambiente de desenvolvimento 100% Python — só `pip install` e os comandos `manage.py tailwind`. O binário do Tailwind CLI é baixado pelo `pytailwindcss`.
-- **CSS inline no `base.html` (provisório, em transição)**: a v1 nasceu com estilos inline para destravar a UI rápido. O TailwindCSS já está instalado e carregado (PRD seção 9 / Sprint 7), mas a conversão dos templates para classes utilitárias ainda não foi feita — o bloco `<style>` inline coexiste com o Tailwind até a migração acontecer.
+- **Identidade visual "Petal" (TailwindCSS)**: a UI foi migrada da v1 (CSS inline) para a identidade Emy, variação **"Petal"** — off-white rosado, soft/feminino com glow, cards bem arredondados, gradiente rosa→roxo, nav inferior flutuante. Escolhida entre três explorações de design (Soft Bloom / Petal / Aurora). Os tokens (cores `emy-*`, fontes) vivem no bloco `@theme` de `theme/static_src/src/styles.css`; o `<style>` inline do `base.html` foi removido. A migração cobriu só as telas com model atual (`Category`/`Transaction`) — Cartões, Metas, Insights, Transferência e Recorrência aparecem no mock mas não têm model e ficaram fora.
+- **Inputs renderizados campo a campo nos templates**: para ter controle total das classes Tailwind sem tocar em `forms.py`/`views.py`, os formulários (`login`, `register`, `transaction_form`, `category_form`) renderizam cada `<input>`/`<select>` manualmente com o `name=` correto, repondo o valor via `form.<campo>.value` e os erros via `form.<campo>.errors`. `type` e `category` viram radios estilizados (toggle/pills).

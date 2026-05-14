@@ -1,43 +1,68 @@
 {% extends "base.html" %}
-{% block title %}Transactions - Finances{% endblock %}
+{% block title %}Lançamentos - Emy{% endblock %}
 
 {% block content %}
-<div class="card">
-    <div class="actions" style="justify-content:space-between;">
-        <h2 style="margin:0;">Transactions</h2>
-        <a class="btn" href="{% url 'finances:transaction_create' %}">+ New transaction</a>
+<div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+    <div>
+        <h1 class="text-3xl font-extrabold tracking-tight">Lançamentos</h1>
+        <p class="mt-1 text-sm text-emy-ink-soft">Tudo o que entrou e saiu.</p>
     </div>
-    <div class="actions" style="margin-top:12px;">
-        <span class="muted">Filter:</span>
-        <a class="pill" href="{% url 'finances:transaction_list' %}">All</a>
-        <a class="pill" href="?type=income">Income</a>
-        <a class="pill" href="?type=expense">Expense</a>
+    <a href="{% url 'finances:transaction_create' %}"
+       class="rounded-full bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 px-5 py-2.5 text-sm font-bold text-white shadow-[0_14px_30px_-10px_rgba(139,92,246,0.6)] transition hover:opacity-95">
+        + Lançamento
+    </a>
+</div>
+
+<div class="mb-5 flex flex-wrap gap-2">
+    <a href="{% url 'finances:transaction_list' %}"
+       class="rounded-full px-4 py-2 text-sm font-semibold transition {% if not type_filter %}bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 text-white{% else %}bg-emy-surface text-emy-ink-soft hover:text-emy-pink-600{% endif %}">
+        Todos
+    </a>
+    <a href="?type=income"
+       class="rounded-full px-4 py-2 text-sm font-semibold transition {% if type_filter == 'income' %}bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 text-white{% else %}bg-emy-surface text-emy-ink-soft hover:text-emy-pink-600{% endif %}">
+        Receitas
+    </a>
+    <a href="?type=expense"
+       class="rounded-full px-4 py-2 text-sm font-semibold transition {% if type_filter == 'expense' %}bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 text-white{% else %}bg-emy-surface text-emy-ink-soft hover:text-emy-pink-600{% endif %}">
+        Despesas
+    </a>
+</div>
+
+<div class="rounded-[2rem] bg-emy-surface p-4 shadow-[0_20px_50px_-30px_rgba(42,26,54,0.4)] sm:p-5">
+    <div class="space-y-1">
+        {% for t in transactions %}
+            <div class="flex items-center gap-3 rounded-2xl px-3 py-3 transition hover:bg-emy-bg">
+                <a href="{% url 'finances:transaction_update' t.pk %}" class="flex min-w-0 flex-1 items-center gap-3">
+                    <span class="h-9 w-9 shrink-0 rounded-xl" style="background:{{ t.category.color }}"></span>
+                    <div class="min-w-0">
+                        <p class="truncate text-sm font-semibold">{{ t.description }}</p>
+                        <p class="truncate text-xs text-emy-ink-mute">
+                            {{ t.category.name }} · {{ t.get_payment_method_display }} · {{ t.date|date:"d M Y" }}
+                        </p>
+                    </div>
+                </a>
+                <span class="shrink-0 text-sm font-bold {% if t.type == 'income' %}text-emy-good{% else %}text-emy-bad{% endif %}">
+                    {% if t.type == 'income' %}+{% else %}−{% endif %} R$ {{ t.amount|floatformat:2 }}
+                </span>
+                <div class="flex shrink-0 items-center gap-2">
+                    <a href="{% url 'finances:transaction_update' t.pk %}"
+                       class="rounded-full px-2.5 py-1 text-xs font-bold text-emy-ink-soft transition hover:bg-emy-bg-warm hover:text-emy-pink-600">
+                        Editar
+                    </a>
+                    <a href="{% url 'finances:transaction_delete' t.pk %}"
+                       class="rounded-full px-2.5 py-1 text-xs font-bold text-emy-ink-soft transition hover:bg-emy-bad/10 hover:text-emy-bad">
+                        Excluir
+                    </a>
+                </div>
+            </div>
+        {% empty %}
+            <div class="rounded-2xl bg-emy-bg px-4 py-10 text-center">
+                <p class="text-sm text-emy-ink-soft">Nenhum lançamento encontrado.</p>
+                <a href="{% url 'finances:transaction_create' %}" class="mt-2 inline-block text-sm font-bold text-emy-pink-600 hover:underline">
+                    Lançar o primeiro
+                </a>
+            </div>
+        {% endfor %}
     </div>
-    <table style="margin-top:14px;">
-        <thead>
-            <tr>
-                <th>Date</th><th>Description</th><th>Category</th><th>Method</th>
-                <th>Type</th><th>Amount</th><th></th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for t in transactions %}
-            <tr>
-                <td>{{ t.date }}</td>
-                <td>{{ t.description }}</td>
-                <td><span class="swatch" style="background:{{ t.category.color }}"></span>{{ t.category.name }}</td>
-                <td>{{ t.get_payment_method_display }}</td>
-                <td><span class="pill">{{ t.get_type_display }}</span></td>
-                <td class="{{ t.type }}">{{ t.signed_amount }}</td>
-                <td class="actions">
-                    <a href="{% url 'finances:transaction_update' t.pk %}">Edit</a>
-                    <a class="expense" href="{% url 'finances:transaction_delete' t.pk %}">Delete</a>
-                </td>
-            </tr>
-            {% empty %}
-            <tr><td colspan="7" class="muted">No transactions found.</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
 </div>
 {% endblock %}

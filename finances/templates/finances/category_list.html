@@ -1,33 +1,49 @@
 {% extends "base.html" %}
-{% block title %}Categories - Finances{% endblock %}
+{% block title %}Categorias - Emy{% endblock %}
 
 {% block content %}
-<div class="card">
-    <div class="actions" style="justify-content:space-between;">
-        <h2 style="margin:0;">Categories</h2>
-        <a class="btn" href="{% url 'finances:category_create' %}">+ New category</a>
+<div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+    <div>
+        <h1 class="text-3xl font-extrabold tracking-tight">Categorias</h1>
+        <p class="mt-1 text-sm text-emy-ink-soft">Como você organiza seus lançamentos.</p>
     </div>
-    <table style="margin-top:14px;">
-        <thead>
-            <tr><th>Name</th><th>Type</th><th>Color</th><th>Icon</th><th>Active</th><th></th></tr>
-        </thead>
-        <tbody>
-            {% for c in categories %}
-            <tr>
-                <td>{{ c.name }}</td>
-                <td><span class="pill">{{ c.get_type_display }}</span></td>
-                <td><span class="swatch" style="background:{{ c.color }}"></span>{{ c.color }}</td>
-                <td>{{ c.icon|default:"—" }}</td>
-                <td>{{ c.is_active|yesno:"Yes,No" }}</td>
-                <td class="actions">
-                    <a href="{% url 'finances:category_update' c.pk %}">Edit</a>
-                    <a class="expense" href="{% url 'finances:category_delete' c.pk %}">Delete</a>
-                </td>
-            </tr>
-            {% empty %}
-            <tr><td colspan="6" class="muted">No categories yet.</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
+    <a href="{% url 'finances:category_create' %}"
+       class="rounded-full bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 px-5 py-2.5 text-sm font-bold text-white shadow-[0_14px_30px_-10px_rgba(139,92,246,0.6)] transition hover:opacity-95">
+        + Categoria
+    </a>
+</div>
+
+<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    {% for c in categories %}
+        <div class="rounded-[1.5rem] bg-emy-surface p-5 shadow-[0_20px_50px_-30px_rgba(42,26,54,0.4)] {% if not c.is_active %}opacity-60{% endif %}">
+            <div class="flex items-start justify-between">
+                <span class="h-11 w-11 rounded-2xl" style="background:{{ c.color }}"></span>
+                <span class="rounded-full bg-emy-bg px-2.5 py-1 text-xs font-bold text-emy-ink-soft">
+                    {% if c.type == 'income' %}Receita{% else %}Despesa{% endif %}
+                </span>
+            </div>
+            <p class="mt-3 text-base font-extrabold">{{ c.name }}</p>
+            <p class="text-xs text-emy-ink-mute">
+                {% if c.icon %}{{ c.icon }} · {% endif %}{% if c.is_active %}Ativa{% else %}Inativa{% endif %}
+            </p>
+            <div class="mt-4 flex gap-2">
+                <a href="{% url 'finances:category_update' c.pk %}"
+                   class="rounded-full bg-emy-bg px-3 py-1.5 text-xs font-bold text-emy-ink-soft transition hover:text-emy-pink-600">
+                    Editar
+                </a>
+                <a href="{% url 'finances:category_delete' c.pk %}"
+                   class="rounded-full bg-emy-bg px-3 py-1.5 text-xs font-bold text-emy-ink-soft transition hover:bg-emy-bad/10 hover:text-emy-bad">
+                    Excluir
+                </a>
+            </div>
+        </div>
+    {% empty %}
+        <div class="rounded-[1.5rem] bg-emy-bg px-4 py-10 text-center sm:col-span-2 lg:col-span-3">
+            <p class="text-sm text-emy-ink-soft">Nenhuma categoria ainda.</p>
+            <a href="{% url 'finances:category_create' %}" class="mt-2 inline-block text-sm font-bold text-emy-pink-600 hover:underline">
+                Criar a primeira
+            </a>
+        </div>
+    {% endfor %}
 </div>
 {% endblock %}
