@@ -3,11 +3,17 @@
 
 {% block content %}
 <div class="mx-auto max-w-lg">
-    <div class="mb-5">
-        <h1 class="text-3xl font-extrabold tracking-tight">
-            {% if form.instance.pk %}Editar categoria{% else %}Nova categoria ✨{% endif %}
-        </h1>
-        <p class="mt-1 text-sm text-emy-ink-soft">Dê um nome, um tipo e uma cor.</p>
+    <div class="mb-5 flex items-center gap-3">
+        <button type="button" onclick="history.back()" aria-label="Voltar"
+                class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emy-surface text-lg text-emy-ink-soft shadow-sm transition hover:text-emy-pink-600">
+            ←
+        </button>
+        <div>
+            <h1 class="text-3xl font-extrabold tracking-tight">
+                {% if form.instance.pk %}Editar categoria{% else %}Nova categoria ✨{% endif %}
+            </h1>
+            <p class="mt-1 text-sm text-emy-ink-soft">Dê um nome, um tipo e uma cor.</p>
+        </div>
     </div>
 
     <form method="post" novalidate
@@ -74,11 +80,7 @@
             </label>
         </div>
 
-        <div class="mt-8 flex items-center gap-3">
-            <a href="{% url 'finances:category_list' %}"
-               class="rounded-2xl bg-emy-bg px-5 py-3 text-sm font-bold text-emy-ink-soft transition hover:bg-emy-bg-warm">
-                Cancelar
-            </a>
+        <div class="mt-8 flex">
             <button type="submit"
                     class="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 px-5 py-3 text-sm font-bold text-white shadow-[0_14px_30px_-10px_rgba(139,92,246,0.6)] transition hover:opacity-95">
                 ✓ Salvar categoria

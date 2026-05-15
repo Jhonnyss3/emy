@@ -55,6 +55,25 @@ Lançamento individual de receita ou despesa, pertencente a um usuário.
   - valida que `category.type == transaction.type`.
 - `__str__` — `"{description} - {amount}"`.
 
+## Profile
+
+Dados pessoais extras de um usuário, preenchidos logo após o cadastro.
+
+| Campo | Tipo | Observação |
+|---|---|---|
+| `user` | OneToOneField → `auth.User` | `on_delete=CASCADE`, `related_name="profile"` |
+| `birth_date` | DateField | obrigatório |
+| `phone` | CharField(20) | obrigatório, validado por `RegexValidator` (`phone_validator`) |
+| `created_at` | DateTimeField | `auto_now_add` |
+| `updated_at` | DateTimeField | `auto_now` |
+
+- `__str__` — `"Profile of {username}"`.
+- O "nome" do usuário não fica aqui — reaproveita `first_name`/`last_name` do
+  `User` nativo (o `ProfileForm` edita os dois objetos).
+- Como `birth_date` e `phone` são obrigatórios, o `Profile` só existe quando
+  preenchido por completo. O `ProfileCompletionMiddleware` usa a ausência do
+  `Profile` para forçar o preenchimento após o cadastro.
+
 ## Regras de integridade
 
 - `Category`: `UniqueConstraint(user, name, type)` — sem categorias
@@ -67,11 +86,19 @@ Lançamento individual de receita ou despesa, pertencente a um usuário.
 - `Transaction.clean()`: coerência usuário/categoria e tipo
   categoria/transação.
 - `Category.color`: `RegexValidator` de hex (`#rgb` ou `#rrggbb`).
+- `Profile.user`: `OneToOneField` — um perfil por usuário.
 
 ## Decisões de design
 
 - **`User` nativo, não custom user model** — mais simples e suficiente para o
-  escopo atual.
+  escopo atual. Dados pessoais extras (data de nascimento, telefone) vivem no
+  model `Profile` (OneToOne), não em um custom user model.
+- **`Profile` como `OneToOneField` com `User`** — quando surgiu a necessidade
+  de campos pessoais extras, optou-se por estendê-lo via `Profile` em vez de
+  trocar `AUTH_USER_MODEL` (arriscado depois do projeto iniciado). O "nome"
+  reaproveita `first_name`/`last_name` do `User`. `birth_date`/`phone`
+  obrigatórios fazem o `Profile` só existir quando completo — o
+  `ProfileCompletionMiddleware` usa isso como sinal de "perfil pendente".
 - **Validações de domínio em `Model.clean()`** — coerência usuário/categoria,
   tipo categoria/transação e trim de strings vivem no `clean()` dos models,
   não nas views. Garante que admin, forms e scripts respeitem as mesmas regras.

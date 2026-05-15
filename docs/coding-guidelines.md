@@ -87,5 +87,11 @@ model → form → view → url → template
     rodar as validações cruzadas.
   - Widgets: `date` (`type=date`), `amount` (`step=0.01`, `min=0.01`),
     `notes` (textarea).
+- `ProfileForm` — `ModelForm` de `Profile`, campos `birth_date` e `phone`,
+  mais os campos declarados `first_name` e `last_name` (que gravam no `User`
+  nativo, não no `Profile`). Recebe `user=` por kwarg no `__init__` e
+  pré-popula `first_name`/`last_name` com os valores atuais do `User`. O
+  `save()` grava o `Profile` e o `User` na mesma chamada. Widgets:
+  `birth_date` (`type=date`), `phone` (placeholder).
 </content>
 </invoke>

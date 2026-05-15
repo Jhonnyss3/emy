@@ -27,6 +27,28 @@ hex_color_validator = RegexValidator(
     message="Color must be a hex value like #1abc9c.",
 )
 
+phone_validator = RegexValidator(
+    regex=r"^\+?[0-9\s()\-]{8,20}$",
+    message="Informe um telefone válido.",
+)
+
+
+class Profile(models.Model):
+    """Extra personal data for a user, filled in right after sign-up."""
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="profile",
+    )
+    birth_date = models.DateField()
+    phone = models.CharField(max_length=20, validators=[phone_validator])
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Profile of {self.user.username}"
+
 
 class Category(models.Model):
     """A user-defined bucket that classifies transactions."""

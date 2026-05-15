@@ -6,6 +6,7 @@ app_name = "finances"
 
 urlpatterns = [
     path("", views.dashboard, name="dashboard"),
+    path("profile/", views.profile_edit, name="profile_edit"),
     path("transactions/", views.transaction_list, name="transaction_list"),
     path("transactions/new/", views.transaction_create, name="transaction_create"),
     path(

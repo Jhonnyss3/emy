@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}{% if form.instance.pk %}Meu perfil{% else %}Complete seu perfil{% endif %} - Emy{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-lg">
+    <div class="mb-5 flex items-center gap-3">
+        <button type="button" onclick="history.back()" aria-label="Voltar"
+                class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emy-surface text-lg text-emy-ink-soft shadow-sm transition hover:text-emy-pink-600">
+            ←
+        </button>
+        <div>
+            <h1 class="text-3xl font-extrabold tracking-tight">
+                {% if form.instance.pk %}Meu perfil{% else %}Quase lá ✨{% endif %}
+            </h1>
+            <p class="mt-1 text-sm text-emy-ink-soft">
+                {% if form.instance.pk %}Atualize suas informações pessoais.{% else %}Conte um pouco sobre você para começar.{% endif %}
+            </p>
+        </div>
+    </div>
+
+    <form method="post" novalidate
+          class="rounded-[2rem] bg-emy-surface p-6 shadow-[0_30px_80px_-30px_rgba(42,26,54,0.45)] sm:p-8">
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+            <div class="mb-5 rounded-2xl bg-emy-bad/10 px-4 py-3 text-sm text-emy-bad">
+                {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+            </div>
+        {% endif %}
+
+        <div class="space-y-5">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label for="id_first_name" class="mb-1 block text-sm font-semibold text-emy-ink-soft">Nome</label>
+                    <input type="text" name="first_name" id="id_first_name" required value="{{ form.first_name.value|default:'' }}"
+                           placeholder="Maria"
+                           class="w-full rounded-2xl bg-emy-bg px-4 py-3 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">
+                    {% for error in form.first_name.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
+                </div>
+                <div>
+                    <label for="id_last_name" class="mb-1 block text-sm font-semibold text-emy-ink-soft">Sobrenome</label>
+                    <input type="text" name="last_name" id="id_last_name" required value="{{ form.last_name.value|default:'' }}"
+                           placeholder="Silva"
+                           class="w-full rounded-2xl bg-emy-bg px-4 py-3 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">
+                    {% for error in form.last_name.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
+                </div>
+            </div>
+
+            <div>
+                <label for="id_birth_date" class="mb-1 block text-sm font-semibold text-emy-ink-soft">Data de nascimento</label>
+                <input type="date" name="birth_date" id="id_birth_date" required value="{{ form.birth_date.value|date:'Y-m-d' }}"
+                       class="w-full rounded-2xl bg-emy-bg px-4 py-3 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">
+                {% for error in form.birth_date.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
+            </div>
+
+            <div>
+                <label for="id_phone" class="mb-1 block text-sm font-semibold text-emy-ink-soft">Telefone</label>
+                <input type="text" name="phone" id="id_phone" required value="{{ form.phone.value|default:'' }}"
+                       placeholder="(11) 99999-9999"
+                       class="w-full rounded-2xl bg-emy-bg px-4 py-3 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">
+                {% for error in form.phone.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
+            </div>
+        </div>
+
+        <div class="mt-8 flex">
+            <button type="submit"
+                    class="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 px-5 py-3 text-sm font-bold text-white shadow-[0_14px_30px_-10px_rgba(139,92,246,0.6)] transition hover:opacity-95">
+                ✓ Salvar perfil
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

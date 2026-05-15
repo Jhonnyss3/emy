@@ -18,9 +18,10 @@
 emy/
 ├── core/                 # Projeto Django (settings, urls, wsgi/asgi)
 ├── finances/             # App de domínio
-│   ├── models.py         # Category, Transaction, TransactionType, PaymentMethod
-│   ├── forms.py          # CategoryForm, TransactionForm
-│   ├── views.py          # register, dashboard, CRUD de transações e categorias
+│   ├── models.py         # Category, Transaction, Profile, TransactionType, PaymentMethod
+│   ├── forms.py          # CategoryForm, TransactionForm, ProfileForm
+│   ├── views.py          # register, profile_edit, dashboard, CRUD de transações e categorias
+│   ├── middleware.py     # ProfileCompletionMiddleware
 │   ├── admin.py          # CategoryAdmin, TransactionAdmin
 │   ├── urls.py           # rotas do app (app_name = "finances")
 │   ├── tests.py          # testes do app
@@ -40,7 +41,7 @@ emy/
 | App | Responsabilidade |
 |---|---|
 | `core` | Projeto Django — settings, URLs raiz, wsgi/asgi. Sem models próprios. |
-| `finances` | App de domínio — categorias, transações, dashboard e telas de autenticação. |
+| `finances` | App de domínio — categorias, transações, perfil do usuário, dashboard e telas de autenticação. |
 | `theme` | App gerado pelo `django-tailwind` — guarda a fonte e o build do CSS. Sem models nem views próprios. |
 
 A autenticação usa o `User` nativo de `django.contrib.auth` — não há app
@@ -53,7 +54,8 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a
 
 | View | Rota (name) | Função |
 |---|---|---|
-| `register` | `register` | Cadastro via `UserCreationForm`; login automático; redireciona usuário já autenticado para o dashboard. |
+| `register` | `register` | Cadastro via `UserCreationForm`; login automático; redireciona para `profile_edit` após o cadastro e usuário já autenticado para o dashboard. |
+| `profile_edit` | `finances:profile_edit` | Cria/edita o `Profile` do usuário; é a tela aberta logo após o cadastro. |
 | `dashboard` | `finances:dashboard` | Resumo do mês corrente (receita, despesa, saldo) + 10 transações mais recentes. |
 | `transaction_list` | `finances:transaction_list` | Lista as transações do usuário; filtro opcional por tipo via `?type=income\|expense`. |
 | `transaction_create` | `finances:transaction_create` | Cria transação pelo `TransactionForm`. |
@@ -74,6 +76,7 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a
 
 `finances/urls.py` (`app_name = "finances"`):
 - `""` → `dashboard`
+- `profile/` → `profile_edit`
 - `transactions/` → `transaction_list`
 - `transactions/new/` → `transaction_create`
 - `transactions/<int:pk>/edit/` → `transaction_update`
@@ -95,6 +98,7 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a
 ## Settings relevantes (`core/settings.py`)
 
 - `INSTALLED_APPS` inclui `finances`, `tailwind` e `theme`.
+- `MIDDLEWARE` inclui `finances.middleware.ProfileCompletionMiddleware`, logo após o `AuthenticationMiddleware` — força usuário autenticado sem `Profile` a completar o perfil.
 - `TAILWIND_APP_NAME = 'theme'`.
 - `DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'`.
 - `AUTH_PASSWORD_VALIDATORS` com a configuração padrão do Django.

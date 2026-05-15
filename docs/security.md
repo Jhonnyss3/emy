@@ -16,6 +16,10 @@ sistema de perfis nem matriz de permissões; o filtro por `user` em cada query
 
 - Toda view de dados leva `@login_required`. `register` é a única view
   pública e isso é uma decisão consciente.
+- `ProfileCompletionMiddleware` redireciona usuário autenticado sem `Profile`
+  para a tela de perfil em qualquer rota (exceto `/admin/`, a própria tela de
+  perfil e o `logout`) — é uma regra global de acesso, não substitui o
+  `@login_required` de cada view.
 - Senhas sempre via `django.contrib.auth` (hash PBKDF2). Nunca armazenar,
   logar ou trafegar senha em texto puro. Manter os `AUTH_PASSWORD_VALIDATORS`
   ativos.

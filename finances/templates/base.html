@@ -18,7 +18,7 @@
             <span class="text-xl font-extrabold tracking-tight">emy</span>
         </a>
         <div class="flex items-center gap-3">
-            <span class="hidden text-sm font-medium text-emy-ink-soft sm:inline">{{ user.username }}</span>
+            <a href="{% url 'finances:profile_edit' %}" class="hidden text-sm font-medium text-emy-ink-soft transition hover:text-emy-pink-600 sm:inline">{{ user.first_name|default:user.username }}</a>
             <form method="post" action="{% url 'logout' %}">
                 {% csrf_token %}
                 <button type="submit" class="rounded-full bg-emy-surface px-4 py-2 text-sm font-semibold text-emy-ink-soft shadow-sm transition hover:text-emy-pink-600">Sair</button>

@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import Category, Transaction
+from .models import Category, Profile, Transaction
 
 
 class CategoryForm(forms.ModelForm):
@@ -48,3 +48,35 @@ class TransactionForm(forms.ModelForm):
         if self.user is not None:
             self.instance.user = self.user
         return cleaned_data
+
+
+class ProfileForm(forms.ModelForm):
+    first_name = forms.CharField(max_length=150)
+    last_name = forms.CharField(max_length=150)
+
+    class Meta:
+        model = Profile
+        fields = ("first_name", "last_name", "birth_date", "phone")
+        widgets = {
+            "birth_date": forms.DateInput(attrs={"type": "date"}),
+            "phone": forms.TextInput(attrs={"placeholder": "(11) 99999-9999"}),
+        }
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+        if user is not None:
+            self.fields["first_name"].initial = user.first_name
+            self.fields["last_name"].initial = user.last_name
+
+    def save(self, commit=True):
+        profile = super().save(commit=False)
+        if self.user is not None:
+            profile.user = self.user
+            self.user.first_name = self.cleaned_data["first_name"]
+            self.user.last_name = self.cleaned_data["last_name"]
+            if commit:
+                self.user.save()
+        if commit:
+            profile.save()
+        return profile

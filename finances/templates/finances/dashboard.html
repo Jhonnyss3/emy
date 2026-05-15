@@ -3,7 +3,7 @@
 
 {% block content %}
 <div class="mb-6">
-    <h1 class="text-3xl font-extrabold tracking-tight">Olá, {{ user.username }} ✨</h1>
+    <h1 class="text-3xl font-extrabold tracking-tight">Olá, {{ user.first_name|default:user.username }} ✨</h1>
     <p class="mt-1 text-sm text-emy-ink-soft">Aqui está o seu mês em pedacinhos.</p>
 </div>
 

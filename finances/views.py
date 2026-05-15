@@ -8,7 +8,7 @@ from django.db.models import Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
-from .forms import CategoryForm, TransactionForm
+from .forms import CategoryForm, ProfileForm, TransactionForm
 from .models import Category, Transaction, TransactionType
 
 
@@ -21,11 +21,26 @@ def register(request):
         if form.is_valid():
             user = form.save()
             login(request, user)
-            messages.success(request, "Welcome! Your account is ready.")
-            return redirect("finances:dashboard")
+            messages.success(request, "Conta criada! Complete seu perfil.")
+            return redirect("finances:profile_edit")
     else:
         form = UserCreationForm()
     return render(request, "registration/register.html", {"form": form})
+
+
+@login_required
+def profile_edit(request):
+    """Edit the current user's profile; also runs right after sign-up."""
+    profile = getattr(request.user, "profile", None)
+    if request.method == "POST":
+        form = ProfileForm(request.POST, instance=profile, user=request.user)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Perfil atualizado.")
+            return redirect("finances:dashboard")
+    else:
+        form = ProfileForm(instance=profile, user=request.user)
+    return render(request, "finances/profile_form.html", {"form": form})
 
 
 @login_required

@@ -109,6 +109,9 @@ usuários sobre a mesma carteira (conta compartilhada).
 | RF15 | O dashboard exibe as 10 transações mais recentes. | Média |
 | RF16 | O administrador pode gerenciar todos os dados via Django Admin. | Média |
 | RF17 | Mensagens de feedback (sucesso/erro) são exibidas após cada ação. | Média |
+| RF18 | Após o cadastro, o usuário completa o perfil (nome, sobrenome, data de nascimento, telefone). | Alta |
+| RF19 | Enquanto o perfil não estiver completo, o usuário autenticado é redirecionado para a tela de perfil. | Alta |
+| RF20 | O usuário pode editar o perfil a qualquer momento. | Média |
 
 ### 6.1 Flowchart Mermaid — fluxos de UX
 
@@ -120,7 +123,10 @@ flowchart TD
     HasAcc -- Não --> Register[Tela de Cadastro]
     Register --> RegOK{Cadastro válido?}
     RegOK -- Não --> Register
-    RegOK -- Sim --> Dashboard
+    RegOK -- Sim --> Profile[Completar perfil]
+    Profile --> ProfileOK{Perfil completo?}
+    ProfileOK -- Não --> Profile
+    ProfileOK -- Sim --> Dashboard
     HasAcc -- Sim --> LoginTry[Submete credenciais]
     LoginTry --> LoginOK{Credenciais válidas?}
     LoginOK -- Não --> Login
@@ -185,6 +191,7 @@ flowchart TD
 | RNF13 | Portabilidade | Compatível com SQLite (dev) e PostgreSQL (produção futura). |
 | RNF14 | Acessibilidade | Contraste mínimo AA, labels associados a inputs, navegação por teclado. |
 | RNF15 | Observabilidade | `python manage.py check` sem erros antes de cada release. |
+| RNF16 | Acesso | Usuário autenticado sem perfil completo é redirecionado para a tela de perfil (`ProfileCompletionMiddleware`). |
 
 ---
 
@@ -211,9 +218,10 @@ flowchart TD
 emy/
 ├── core/                 # Projeto Django (settings, urls, wsgi/asgi)
 ├── finances/             # App de domínio
-│   ├── models.py         # Category, Transaction, enums
-│   ├── forms.py          # CategoryForm, TransactionForm
-│   ├── views.py          # Dashboard, CRUD, auth (register)
+│   ├── models.py         # Category, Transaction, Profile, enums
+│   ├── forms.py          # CategoryForm, TransactionForm, ProfileForm
+│   ├── views.py          # Dashboard, CRUD, auth (register), profile_edit
+│   ├── middleware.py     # ProfileCompletionMiddleware
 │   ├── admin.py          # Registros no Django Admin
 │   ├── urls.py           # Rotas do app
 │   ├── migrations/
@@ -289,8 +297,19 @@ classDiagram
         bank_transfer
     }
 
+    class Profile {
+        +int id
+        +OneToOne user
+        +Date birth_date
+        +String phone
+        +DateTime created_at
+        +DateTime updated_at
+        +__str__()
+    }
+
     User "1" --> "0..*" Category : possui
     User "1" --> "0..*" Transaction : possui
+    User "1" --> "0..1" Profile : perfil
     Category "1" --> "0..*" Transaction : categoriza (PROTECT)
 
     Category ..> TransactionType : type
@@ -304,6 +323,7 @@ classDiagram
 erDiagram
     USER ||--o{ CATEGORY : "possui"
     USER ||--o{ TRANSACTION : "possui"
+    USER ||--o| PROFILE : "tem"
     CATEGORY ||--o{ TRANSACTION : "categoriza"
 
     USER {
@@ -313,6 +333,15 @@ erDiagram
         string password
         bool is_active
         datetime date_joined
+    }
+
+    PROFILE {
+        int id PK
+        int user_id FK,UK
+        date birth_date
+        string phone
+        datetime created_at
+        datetime updated_at
     }
 
     CATEGORY {
@@ -348,6 +377,8 @@ erDiagram
 - `Transaction.clean()`: `category.user == transaction.user` e
   `category.type == transaction.type`.
 - `Category.color`: `RegexValidator` de hex (`#rgb` ou `#rrggbb`).
+- `Profile.user`: `OneToOneField` → um perfil por usuário.
+- `Profile.phone`: `RegexValidator` de telefone.
 
 ---
 
@@ -443,6 +474,17 @@ Títulos de página: `text-3xl font-extrabold tracking-tight`. Auxiliar:
   - Critérios de aceite:
     - [ ] Acesso a `/`, `/transactions/`, `/categories/` redireciona ao login
           com `?next=`.
+- **US1.5** — Como usuário recém-cadastrado, quero completar meu perfil com
+  nome, data de nascimento e telefone.
+  - Critérios de aceite:
+    - [ ] Após o cadastro, sou levado à tela de perfil.
+    - [ ] Enquanto o perfil não estiver completo, sou redirecionado a ele em
+          qualquer rota (exceto `/admin/`, a própria tela de perfil e o logout).
+    - [ ] `data de nascimento` e `telefone` são obrigatórios.
+- **US1.6** — Como usuário, quero editar meu perfil a qualquer momento.
+  - Critérios de aceite:
+    - [ ] A tela de perfil é acessível pelo nome do usuário no header.
+    - [ ] O nome (`first_name`/`last_name`) é gravado no `User` nativo.
 
 ### Épico 2 — Gestão de categorias
 

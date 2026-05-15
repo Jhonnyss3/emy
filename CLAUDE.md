@@ -139,9 +139,10 @@ Dependências em `requirements.txt` (Django, asgiref, sqlparse, django-tailwind,
 emy/
 ├── core/                 # Projeto Django (settings, urls, wsgi/asgi)
 ├── finances/             # App de domínio
-│   ├── models.py         # Category, Transaction, TransactionType, PaymentMethod
-│   ├── forms.py          # CategoryForm, TransactionForm
-│   ├── views.py          # register, dashboard, CRUD de transações e categorias
+│   ├── models.py         # Category, Transaction, Profile, TransactionType, PaymentMethod
+│   ├── forms.py          # CategoryForm, TransactionForm, ProfileForm
+│   ├── views.py          # register, profile_edit, dashboard, CRUD de transações e categorias
+│   ├── middleware.py     # ProfileCompletionMiddleware
 │   ├── admin.py          # CategoryAdmin, TransactionAdmin
 │   ├── urls.py           # rotas do app (app_name = "finances")
 │   ├── migrations/
@@ -164,7 +165,7 @@ emy/
 | App | Responsabilidade |
 |---|---|
 | `core` | Projeto Django — settings, URLs raiz, wsgi/asgi. Sem models próprios. |
-| `finances` | App de domínio — categorias, transações, dashboard e telas de autenticação. |
+| `finances` | App de domínio — categorias, transações, perfil do usuário, dashboard e telas de autenticação. |
 | `theme` | App gerado pelo `django-tailwind` — guarda a fonte e o build do CSS. Sem models nem views próprios. |
 
 Autenticação usa o `User` nativo de `django.contrib.auth` — não há app `accounts` nem custom user model.
@@ -230,12 +231,26 @@ Lançamento individual de receita ou despesa, pertencente a um usuário.
   - valida que `category.type == transaction.type`
 - `__str__` — `"{description} - {amount}"`
 
+### Profile
+
+Dados pessoais extras de um usuário, preenchidos logo após o cadastro.
+
+- `user` OneToOneField → `auth.User` (`on_delete=CASCADE`, `related_name="profile"`)
+- `birth_date` DateField — obrigatório
+- `phone` CharField(20) — obrigatório, validado por `RegexValidator` (`phone_validator`)
+- `created_at` DateTimeField — `auto_now_add`
+- `updated_at` DateTimeField — `auto_now`
+- `__str__` — `"Profile of {username}"`
+
+O `Profile` só existe quando preenchido por completo (`birth_date` e `phone` são obrigatórios). O `ProfileCompletionMiddleware` usa a ausência do `Profile` para forçar o preenchimento.
+
 ### Regras de integridade
 
 - `Category`: `UniqueConstraint(user, name, type)` — sem categorias duplicadas por usuário.
 - `Transaction.category`: `on_delete=PROTECT` — categoria com transações vinculadas não pode ser excluída pelo ORM; a view `category_delete` checa antes e exibe mensagem de erro em vez de quebrar.
 - `Transaction.amount`: `MinValueValidator(0.01)` — valor sempre maior que zero.
 - `Transaction.clean()`: coerência usuário/categoria e tipo categoria/transação.
+- `Profile.user`: `OneToOneField` — um perfil por usuário.
 
 ---
 
@@ -246,6 +261,7 @@ Lançamento individual de receita ou despesa, pertencente a um usuário.
   - filtra o queryset de `category` para mostrar apenas categorias **ativas do próprio usuário**;
   - em `clean()`, atribui `self.instance.user` antes de o `Model.clean()` rodar as validações cruzadas.
   - Widgets: `date` (`type=date`), `amount` (`step=0.01`, `min=0.01`), `notes` (textarea).
+- **`ProfileForm`** — `ModelForm` de `Profile`, campos `birth_date` e `phone`, mais os campos declarados `first_name` e `last_name` (que gravam no `User` nativo, não no `Profile`). O `__init__` recebe `user=` por kwarg e pré-popula `first_name`/`last_name` com os valores atuais do `User`. O `save()` grava o `Profile` e o `User` na mesma chamada. Widgets: `birth_date` (`type=date`), `phone` (placeholder).
 
 ---
 
@@ -255,7 +271,8 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a �
 
 | View | Rota (name) | Função |
 |---|---|---|
-| `register` | `register` | Cadastro via `UserCreationForm`; login automático; redireciona usuário já autenticado para o dashboard. |
+| `register` | `register` | Cadastro via `UserCreationForm`; login automático; redireciona para `profile_edit` após o cadastro e usuário já autenticado para o dashboard. |
+| `profile_edit` | `finances:profile_edit` | Cria/edita o `Profile` do usuário pelo `ProfileForm`. É a tela que o `register` abre logo após o cadastro. |
 | `dashboard` | `finances:dashboard` | Resumo do mês corrente (receita, despesa, saldo via `Sum`) + 10 transações mais recentes (`select_related("category")`). |
 | `transaction_list` | `finances:transaction_list` | Lista as transações do usuário; filtro opcional por tipo via querystring `?type=income\|expense`. |
 | `transaction_create` | `finances:transaction_create` | Cria transação pelo `TransactionForm`. |
@@ -282,6 +299,7 @@ Feedback de sucesso/erro é dado via `django.contrib.messages` após cada ação
 
 **`finances/urls.py`** (`app_name = "finances"`):
 - `""` → `dashboard`
+- `profile/` → `profile_edit`
 - `transactions/` → `transaction_list`
 - `transactions/new/` → `transaction_create`
 - `transactions/<int:pk>/edit/` → `transaction_update`
@@ -299,15 +317,18 @@ Feedback de sucesso/erro é dado via `django.contrib.messages` após cada ação
 
 Todos os templates abaixo já estão na identidade visual Emy/Petal (ver seção Frontend / TailwindCSS).
 
-- `base.html` — layout base: header (logo Emy + usuário + Sair), nav inferior flutuante (Início / Lançamentos / Categorias / botão `+`, com item ativo via `request.resolver_match`), bloco de mensagens. Estilização 100% Tailwind, sem `<style>` inline.
-- `finances/dashboard.html` — saudação, card de saldo com gradiente (saldo/entrou/saiu) + lista de lançamentos recentes.
+- `base.html` — layout base: header (logo Emy + nome do usuário com link para o perfil + Sair), nav inferior flutuante (Início / Lançamentos / Categorias / botão `+`, com item ativo via `request.resolver_match`), bloco de mensagens. O nome exibido é `first_name` (com fallback para `username`). Estilização 100% Tailwind, sem `<style>` inline.
+- `finances/dashboard.html` — saudação (usa `first_name`), card de saldo com gradiente (saldo/entrou/saiu) + lista de lançamentos recentes.
 - `finances/transaction_list.html` — pills de filtro por tipo + lista de transações em cards arredondados.
 - `finances/transaction_form.html` — card dividido: toggle Despesa/Receita, valor grande, pills de categoria, data, método de pagamento e observações.
 - `finances/category_list.html` — grid de cards de categoria.
 - `finances/category_form.html` — formulário de criação/edição de categoria (toggle de tipo, cor, ícone, ativo).
+- `finances/profile_form.html` — formulário de perfil (nome, sobrenome, data de nascimento, telefone). Usado tanto no preenchimento pós-cadastro quanto na edição.
 - `finances/confirm_delete.html` — confirmação de exclusão (reusado por transação e categoria; título derivado de `object._meta.model_name`).
 - `registration/login.html` — tela de login (card dividido com painel de gradiente).
 - `registration/register.html` — tela de cadastro (mesmo padrão do login).
+
+**Botão "Voltar" padronizado:** os forms (`transaction_form`, `category_form`, `profile_form`) têm um botão circular `←` no topo (fora do `<form>`, `type="button"`, `onclick="history.back()"`) que volta para a página anterior. Nos forms com título fora do `<form>` ele fica ao lado do título; no `transaction_form` (título dentro do card) fica acima do form.
 
 ---
 
@@ -321,22 +342,25 @@ Todos os templates abaixo já estão na identidade visual Emy/Petal (ver seção
 
 ## Autenticação
 
-- `User` nativo de `django.contrib.auth` — sem custom user model.
+- `User` nativo de `django.contrib.auth` — sem custom user model. Dados pessoais extras vivem no model `Profile` (OneToOne).
 - Login/logout/troca de senha via `django.contrib.auth.urls`.
 - Cadastro via `UserCreationForm` na view `register`, com login automático após sucesso.
+- Após o cadastro, o usuário é redirecionado para `profile_edit` para completar o perfil (nome, data de nascimento, telefone).
+- `ProfileCompletionMiddleware` força o preenchimento: usuário autenticado sem `Profile` é redirecionado para `profile_edit` em qualquer rota (exceto `/admin/`, a própria tela de perfil e o `logout`).
 - Senhas validadas por `AUTH_PASSWORD_VALIDATORS` (configuração padrão do Django).
 - Logout via POST (Django 6 não aceita GET).
 - Settings de redirecionamento em `core/settings.py`:
   - `LOGIN_URL = 'login'`
   - `LOGIN_REDIRECT_URL = 'finances:dashboard'`
   - `LOGOUT_REDIRECT_URL = 'login'`
-- Não há sistema de perfis/permissões granulares — o isolamento é feito por `request.user` em cada view.
+- Não há sistema de permissões granulares — o isolamento é feito por `request.user` em cada view. O `Profile` guarda dados pessoais, não papéis nem permissões.
 
 ---
 
 ## Settings relevantes (`core/settings.py`)
 
 - `INSTALLED_APPS` inclui `finances`, `tailwind` e `theme`.
+- `MIDDLEWARE` inclui `finances.middleware.ProfileCompletionMiddleware` (logo após o `AuthenticationMiddleware`).
 - `TAILWIND_APP_NAME = 'theme'`.
 - `DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'`.
 - `DEBUG = True` e `SECRET_KEY` hardcoded — **pendência de segurança**: extrair para variáveis de ambiente antes de qualquer deploy (ver PRD, R06 / Sprint 8).
@@ -346,7 +370,10 @@ Todos os templates abaixo já estão na identidade visual Emy/Petal (ver seção
 
 ## Decisões de Design Registradas
 
-- **`User` nativo, não custom user model**: o diagrama original modelava um `User` «Auth» com campos idênticos ao `auth.User` padrão do Django. Decidiu-se usar o `User` nativo — mais simples e suficiente para o escopo. Trocar `AUTH_USER_MODEL` depois é arriscado, mas o escopo atual não exige campos extras de usuário.
+- **`User` nativo, não custom user model**: o diagrama original modelava um `User` «Auth» com campos idênticos ao `auth.User` padrão do Django. Decidiu-se usar o `User` nativo — mais simples e suficiente para o escopo. Trocar `AUTH_USER_MODEL` depois é arriscado; quando surgiu a necessidade de dados pessoais extras (nome, data de nascimento, telefone), optou-se por um model `Profile` (OneToOne) em vez de custom user model.
+- **`Profile` como `OneToOneField` com `User`**: dados pessoais extras (data de nascimento, telefone) vivem no `Profile`; o "nome" reaproveita `first_name`/`last_name` do `User` nativo (o `ProfileForm` edita os dois objetos). `birth_date` e `phone` são obrigatórios, então o `Profile` só existe quando completo — o middleware usa isso como sinal de "perfil pendente".
+- **Preenchimento de perfil forçado via middleware**: `ProfileCompletionMiddleware` redireciona qualquer usuário autenticado sem `Profile` para `profile_edit`. É a forma idiomática do Django de aplicar uma regra global de acesso sem repetir checagem em cada view; libera apenas `/admin/`, a tela de perfil e o `logout`.
+- **Botão "Voltar" padronizado fora do `<form>`**: os forms têm um botão `←` no topo, fora do `<form>` e com `type="button"`, usando `history.back()` para voltar à página anterior real. Fica fora do `<form>` para não submetê-lo e por ser navegação, não ação do formulário.
 - **Validações de domínio em `Model.clean()`**: coerência usuário/categoria, tipo categoria/transação e trim de strings vivem no `clean()` dos models, não nas views. Garante que admin, forms e scripts respeitem as mesmas regras. As views/forms chamam essas validações via `full_clean()` no fluxo do `ModelForm`.
 - **`Transaction.category` com `on_delete=PROTECT`**: seguindo a cardinalidade `Category "1" → "0..*" Transaction` do diagrama, a categoria é obrigatória e não pode ser excluída enquanto tiver transações. A view `category_delete` faz a checagem explícita e devolve mensagem amigável em vez de deixar o `ProtectedError` estourar.
 - **`signed_amount` como @property**: o valor com sinal (negativo para despesa) é calculado na leitura, não persistido — `amount` guarda sempre o valor absoluto e `type` define o sinal. Evita inconsistência entre os dois campos.
@@ -355,4 +382,4 @@ Todos os templates abaixo já estão na identidade visual Emy/Petal (ver seção
 - **Isolamento por `request.user` em vez de sistema de permissões**: o produto é single-tenant por conta — cada usuário só vê o que é seu. Não há perfis nem matriz de permissões; o filtro por `user` em cada query é a única barreira e é obrigatório.
 - **TailwindCSS no modo standalone (sem Node.js)**: optou-se por `django-tailwind` 4.x + `pytailwindcss` em vez do modo "full" que exige Node/npm. Mantém o ambiente de desenvolvimento 100% Python — só `pip install` e os comandos `manage.py tailwind`. O binário do Tailwind CLI é baixado pelo `pytailwindcss`.
 - **Identidade visual "Petal" (TailwindCSS)**: a UI foi migrada da v1 (CSS inline) para a identidade Emy, variação **"Petal"** — off-white rosado, soft/feminino com glow, cards bem arredondados, gradiente rosa→roxo, nav inferior flutuante. Escolhida entre três explorações de design (Soft Bloom / Petal / Aurora). Os tokens (cores `emy-*`, fontes) vivem no bloco `@theme` de `theme/static_src/src/styles.css`; o `<style>` inline do `base.html` foi removido. A migração cobriu só as telas com model atual (`Category`/`Transaction`) — Cartões, Metas, Insights, Transferência e Recorrência aparecem no mock mas não têm model e ficaram fora.
-- **Inputs renderizados campo a campo nos templates**: para ter controle total das classes Tailwind sem tocar em `forms.py`/`views.py`, os formulários (`login`, `register`, `transaction_form`, `category_form`) renderizam cada `<input>`/`<select>` manualmente com o `name=` correto, repondo o valor via `form.<campo>.value` e os erros via `form.<campo>.errors`. `type` e `category` viram radios estilizados (toggle/pills).
+- **Inputs renderizados campo a campo nos templates**: para ter controle total das classes Tailwind sem tocar em `forms.py`/`views.py`, os formulários (`login`, `register`, `transaction_form`, `category_form`, `profile_form`) renderizam cada `<input>`/`<select>` manualmente com o `name=` correto, repondo o valor via `form.<campo>.value` e os erros via `form.<campo>.errors`. `type` e `category` viram radios estilizados (toggle/pills).

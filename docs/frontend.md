@@ -52,12 +52,13 @@ pelo app `finances`, que tem o seu próprio `base.html`.
 
 | Template | Conteúdo |
 |---|---|
-| `base.html` | Header (logo Emy + usuário + Sair), nav inferior flutuante, bloco de mensagens. Estilização 100% Tailwind. |
-| `finances/dashboard.html` | Saudação, card de saldo com gradiente (saldo/entrou/saiu) + lista de lançamentos recentes. |
+| `base.html` | Header (logo Emy + nome do usuário com link para o perfil + Sair), nav inferior flutuante, bloco de mensagens. O nome exibido é `first_name` (fallback para `username`). Estilização 100% Tailwind. |
+| `finances/dashboard.html` | Saudação (usa `first_name`), card de saldo com gradiente (saldo/entrou/saiu) + lista de lançamentos recentes. |
 | `finances/transaction_list.html` | Pills de filtro por tipo + lista de transações em cards arredondados. |
 | `finances/transaction_form.html` | Card dividido: toggle Despesa/Receita, valor grande, pills de categoria, data, método, observações. |
 | `finances/category_list.html` | Grid de cards de categoria. |
 | `finances/category_form.html` | Formulário de categoria (toggle de tipo, cor, ícone, ativo). |
+| `finances/profile_form.html` | Formulário de perfil (nome, sobrenome, data de nascimento, telefone). Usado no preenchimento pós-cadastro e na edição. |
 | `finances/confirm_delete.html` | Confirmação de exclusão (reusado por transação e categoria). |
 | `registration/login.html` | Tela de login (card dividido com painel de gradiente). |
 | `registration/register.html` | Tela de cadastro (mesmo padrão do login). |
@@ -70,6 +71,14 @@ cada `<input>`/`<select>` tem o `name=` correto, o valor é reposto via
 `form.<campo>.value` e os erros via `form.<campo>.errors`. Os campos `type` e
 `category` viram radios estilizados (toggle e pills).
 
+### Botão "Voltar"
+
+Os forms (`transaction_form`, `category_form`, `profile_form`) têm um botão
+circular `←` padronizado no topo: fica **fora** do `<form>`, é `type="button"`
+e usa `onclick="history.back()"` para voltar à página anterior real. Nos forms
+com título fora do `<form>` (`category_form`, `profile_form`) ele fica ao lado
+do título; no `transaction_form` (título dentro do card) fica acima do form.
+
 ## Estado atual da UI
 
 Os templates foram migrados da v1 (CSS inline) para a identidade visual
@@ -81,6 +90,9 @@ A migração cobriu **apenas as telas com model atual** (`Category` e
 `Transaction`). Features que aparecem no mock de design mas não têm model —
 Cartões/faturas, Metas, Insights, Transferência, Recorrência, busca global,
 "remember-me" e recuperação de senha — **não** foram incluídas.
+
+A tela de perfil (`profile_form.html`) foi adicionada depois, já na
+identidade Petal, junto com o model `Profile`.
 
 Pendências de UI conhecidas:
 
