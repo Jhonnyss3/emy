@@ -9,8 +9,9 @@
   "Tailwind v4 Standalone").
 - Fonte do CSS: `theme/static_src/src/styles.css` — contém
   `@import "tailwindcss"`, a diretiva `@source` que faz o Tailwind escanear
-  os `.html/.py/.js` do projeto, e um bloco `@theme` com os tokens de design
-  Emy (ver abaixo).
+  os `.html/.py/.js` do projeto, um bloco `@theme` com os tokens de design
+  Emy (ver abaixo) e um `@layer utilities` com a utility `.no-scrollbar`
+  (esconde a barra de rolagem mantendo o scroll — usada no app shell).
 - CSS compilado: `theme/static/css/dist/styles.css` — artefato de build, está
   no `.gitignore`; o build precisa rodar no deploy.
 - Settings: `INSTALLED_APPS` inclui `tailwind` e `theme`;
@@ -44,6 +45,39 @@ usados como classes utilitárias normais (`bg-emy-bg`, `text-emy-pink-600`,
   (`from-emy-pink-500 to-emy-purple-500`) em botões/destaques, nav inferior
   flutuante.
 
+## Layout / app shell
+
+O `base.html` monta um **app shell** de altura fixa: o `<body>` é
+`h-[100dvh] flex flex-col overflow-hidden` (a página nunca rola) e o `<main>`
+é a única área rolável (`flex-1 min-h-0 overflow-y-auto no-scrollbar`) — então
+não aparece scrollbar e a estrutura fica sempre "numa tela". O conteúdo do
+`main` é centralizado na vertical via `my-auto` (centra quando cabe; quando é
+maior que a tela, volta ao topo e rola por dentro, sem barra visível).
+
+- **Header (topo):** logo · **seletor de escopo (dropdown)** · nome do
+  usuário/Sair. O seletor é um `<details>` que abre um menu com "Pessoal" + os
+  grupos do usuário (✓ no ativo, troca via POST para `scope_switch`) +
+  "Criar novo grupo" / "Gerenciar grupos". Fecha ao clicar fora (JS).
+- **Nav inferior:** barra flutuante de ícones (Início / Lançamentos / Investir
+  / Categorias + botão `+`), centralizada, presente no mobile **e** no desktop.
+  Cada item tem ícone (SVG) sempre visível e rótulo que aparece a partir de
+  `sm:`. Item ativo via `request.resolver_match`.
+- **Barra de loading:** `#page-loader` no topo (gradiente) disparada por
+  cliques em links internos e submits; finaliza no `pageshow`.
+
+### Responsividade — desktop 50/50
+
+Mobile é coluna única; a partir de `lg:` as telas usam **duas colunas**
+(`lg:grid lg:grid-cols-2 lg:gap-6`). Padrões por tipo de tela:
+
+- **Dashboard:** cabeçalho + linha de 4 cards de stat (Saldo em destaque,
+  Entrou, Saiu, Investido) em `lg:grid-cols-4`; abaixo, "Lançamentos recentes"
+  (2/3) + card "Listas da casa" (1/3, só em grupo).
+- **Listas/detalhe:** controles/resumo/forms à esquerda, lista à direita
+  (colunas de altura igual onde faz sentido).
+- **Forms:** padrão "card dividido" (`md:grid-cols-2`) — painel de gradiente
+  com título à esquerda, campos à direita; empilha no mobile.
+
 ## Templates
 
 `APP_DIRS=True` — templates ficam em `finances/templates/`. O
@@ -52,12 +86,12 @@ pelo app `finances`, que tem o seu próprio `base.html`.
 
 | Template | Conteúdo |
 |---|---|
-| `base.html` | Header (logo Emy + pílula de escopo ativo + nome do usuário com link para o perfil + Sair), nav inferior flutuante, bloco de mensagens. A pílula central mostra o escopo atual ("Pessoal" ou o nome do grupo) e leva à troca de escopo. O nome exibido é `first_name` (fallback para `username`). Estilização 100% Tailwind. |
+| `base.html` | App shell: header (logo + seletor de escopo em dropdown + usuário/Sair), `main` rolável sem barra com conteúdo centralizado, nav inferior de ícones (mobile e desktop), barra de loading e bloco de mensagens. Ver seção **Layout / app shell**. |
 | `finances/scope_switch.html` | Escolha do escopo ativo (Pessoal ou um grupo) + link "Gerenciar grupos". |
 | `finances/household_list.html` | Lista dos grupos do usuário + botão "Novo grupo". |
 | `finances/household_form.html` | Criação de grupo (nome). |
 | `finances/household_detail.html` | Membros do grupo; o dono adiciona membro por e-mail e remove membros. |
-| `finances/dashboard.html` | Saudação (usa `first_name`), card de saldo com gradiente (saldo/entrou/saiu/investido) + atalho "Listas da casa" quando o escopo é grupo + lista de lançamentos recentes. |
+| `finances/dashboard.html` | Cabeçalho (saudação + "+ Lançar"), linha de 4 cards de stat (Saldo destaque / Entrou / Saiu / Investido) e área inferior com "Lançamentos recentes" + card "Listas da casa" (em grupo). Layout 50/50 no desktop. |
 | `finances/transaction_list.html` | Pills de filtro por tipo + lista de transações em cards arredondados. |
 | `finances/transaction_form.html` | Card dividido: toggle Despesa/Receita, valor grande, pills de categoria, data, método, observações. |
 | `finances/category_list.html` | Grid de cards de categoria. |
@@ -83,11 +117,11 @@ cada `<input>`/`<select>` tem o `name=` correto, o valor é reposto via
 
 ### Botão "Voltar"
 
-Os forms (`transaction_form`, `category_form`, `profile_form`) têm um botão
-circular `←` padronizado no topo: fica **fora** do `<form>`, é `type="button"`
-e usa `onclick="history.back()"` para voltar à página anterior real. Nos forms
-com título fora do `<form>` (`category_form`, `profile_form`) ele fica ao lado
-do título; no `transaction_form` (título dentro do card) fica acima do form.
+Os forms têm um botão circular `←` padronizado no topo: fica **fora** do
+`<form>`, é `type="button"` e usa `onclick="history.back()"` para voltar à
+página anterior real. Como todos os forms adotaram o **card dividido**
+(`md:grid-cols-2`, painel de gradiente com título à esquerda + campos à
+direita), o botão fica acima do card.
 
 ## Estado atual da UI
 
@@ -107,8 +141,13 @@ identidade Petal, junto com o model `Profile`. As telas de grupo
 pílula de escopo no `base.html` vieram com a feature de compartilhamento, na
 mesma identidade. O cadastro/login passaram a usar e-mail. Depois vieram as
 telas de **investimentos** (`investment_*`) e de **listas de casa**
-(`list_*`); a nav inferior ganhou o item "Investir" (Início / Lançamentos /
-Investir / Categorias / `+`).
+(`list_*`); a nav inferior ganhou o item "Investir".
+
+Por fim, houve um **retrabalho de layout** (ver seção **Layout / app shell**):
+a página virou app shell sem scrollbar; a nav inferior passou a ser de ícones
+(rótulo só no desktop); o seletor de escopo virou dropdown; e o desktop adotou
+o padrão **50/50** (`lg:grid-cols-2`), com o dashboard redesenhado em cards de
+stat. O mobile permanece em coluna única.
 
 Pendências de UI conhecidas:
 

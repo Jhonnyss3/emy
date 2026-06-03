@@ -46,3 +46,14 @@
   --font-serif: "Instrument Serif", serif;
   --font-script: "Caveat", cursive;
 }
+
+/* Hide the scrollbar while keeping the area scrollable (app shell). */
+@layer utilities {
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}

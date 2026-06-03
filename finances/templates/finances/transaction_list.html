@@ -2,6 +2,8 @@
 {% block title %}Lançamentos - Emy{% endblock %}
 
 {% block content %}
+<div class="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
+<div>
 <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
     <div>
         <h1 class="text-3xl font-extrabold tracking-tight">Lançamentos</h1>
@@ -27,7 +29,9 @@
         Despesas
     </a>
 </div>
+</div>
 
+<div class="mt-5 lg:mt-0">
 <div class="rounded-[2rem] bg-emy-surface p-4 shadow-[0_20px_50px_-30px_rgba(42,26,54,0.4)] sm:p-5">
     <div class="space-y-1">
         {% for t in transactions %}
@@ -64,5 +68,7 @@
             </div>
         {% endfor %}
     </div>
+</div>
+</div>
 </div>
 {% endblock %}

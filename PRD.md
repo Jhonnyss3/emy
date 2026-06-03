@@ -585,10 +585,17 @@ Títulos de página: `text-3xl font-extrabold tracking-tight`. Auxiliar:
 - **Inputs:** `rounded-2xl bg-emy-bg`, foco em `ring-2 ring-emy-pink-400`.
   Formulários renderizam campo a campo; `type` e `category` viram radios
   estilizados (toggle / pills).
-- **Nav:** barra inferior flutuante (`fixed bottom-5`), pílula branca com
-  blur; item ativo em gradiente de marca.
-- **Telas de auth e form de lançamento:** card dividido — painel de
-  gradiente claro de um lado, conteúdo do outro.
+- **Layout (app shell):** a página é fixa em `100dvh` e não rola; só a área de
+  conteúdo rola por dentro, sem barra visível (`.no-scrollbar`). Mobile-first
+  com `dvh`.
+- **Navegação (dois menus):** seletor de escopo (dropdown Pessoal/grupos) no
+  topo; nav inferior flutuante de ícones, pílula branca com blur, item ativo em
+  gradiente de marca (mobile e desktop).
+- **Desktop 50/50:** a partir de `lg:`, as telas usam duas colunas
+  (`lg:grid-cols-2`); o dashboard usa cards de stat (`lg:grid-cols-4`); os forms
+  usam card dividido (painel de gradiente + campos). Mobile em coluna única.
+- **Telas de auth e forms:** card dividido — painel de gradiente claro de um
+  lado, conteúdo do outro.
 
 > Os valores exatos de classe não são versionados aqui (são frágeis de
 > manter) — consultar os templates em `finances/templates/` para o detalhe.

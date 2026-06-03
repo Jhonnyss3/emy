@@ -10,21 +10,47 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Instrument+Serif:ital@0;1&family=Caveat:wght@500;700&display=swap" rel="stylesheet">
     {% tailwind_css %}
 </head>
-<body class="min-h-screen bg-emy-bg font-sans text-emy-ink antialiased">
+<body class="flex h-[100dvh] flex-col overflow-hidden bg-emy-bg font-sans text-emy-ink antialiased">
 <div id="page-loader" class="pointer-events-none fixed inset-x-0 top-0 z-50 h-0.5 opacity-0 transition-opacity duration-300">
     <div id="page-loader-bar" class="h-full w-0 bg-gradient-to-r from-emy-pink-500 to-emy-purple-500 shadow-[0_0_10px_rgba(236,72,153,0.6)] transition-[width] duration-300 ease-out"></div>
 </div>
 {% if user.is_authenticated %}
-    <header class="mx-auto flex max-w-5xl items-center justify-between px-5 py-5">
+    <header class="mx-auto flex w-full max-w-5xl shrink-0 items-center justify-between gap-3 px-5 py-5">
         <a href="{% url 'finances:dashboard' %}" class="flex items-center gap-2">
             <span class="grid h-9 w-9 place-items-center rounded-2xl bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 text-base font-extrabold text-white">e</span>
             <span class="text-xl font-extrabold tracking-tight">emy</span>
         </a>
-        <a href="{% url 'finances:scope_switch' %}" class="flex items-center gap-1.5 rounded-full bg-emy-surface px-4 py-2 text-sm font-semibold text-emy-ink-soft shadow-sm transition hover:text-emy-pink-600">
-            <span class="h-2 w-2 rounded-full {% if active_household %}bg-emy-purple-500{% else %}bg-emy-pink-500{% endif %}"></span>
-            {% if active_household %}{{ active_household.name }}{% else %}Pessoal{% endif %}
-            <span class="text-emy-ink-mute">▾</span>
-        </a>
+        <details id="scope-menu" class="group relative">
+            <summary class="flex cursor-pointer list-none items-center gap-1.5 rounded-full bg-emy-surface px-4 py-2 text-sm font-semibold text-emy-ink-soft shadow-sm transition hover:text-emy-pink-600 [&::-webkit-details-marker]:hidden">
+                <span class="h-2 w-2 rounded-full {% if active_household %}bg-emy-purple-500{% else %}bg-emy-pink-500{% endif %}"></span>
+                {% if active_household %}{{ active_household.name }}{% else %}Pessoal{% endif %}
+                <span class="text-emy-ink-mute transition group-open:rotate-180">▾</span>
+            </summary>
+            <div class="absolute left-1/2 z-30 mt-2 w-64 -translate-x-1/2 rounded-2xl bg-emy-surface p-2 shadow-[0_24px_60px_-20px_rgba(42,26,54,0.4)] ring-1 ring-emy-line">
+                <p class="px-3 pb-1 pt-2 text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Visualizar</p>
+                <form method="post" action="{% url 'finances:scope_switch' %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="scope" value="personal">
+                    <button type="submit" class="flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm font-semibold transition hover:bg-emy-bg {% if not active_household %}text-emy-pink-600{% else %}text-emy-ink-soft{% endif %}">
+                        <span class="flex items-center gap-2"><span class="h-2 w-2 rounded-full bg-emy-pink-500"></span>Pessoal</span>
+                        {% if not active_household %}<span>✓</span>{% endif %}
+                    </button>
+                </form>
+                {% for h in user_households %}
+                    <form method="post" action="{% url 'finances:scope_switch' %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="scope" value="{{ h.pk }}">
+                        <button type="submit" class="flex w-full items-center justify-between rounded-xl px-3 py-2 text-sm font-semibold transition hover:bg-emy-bg {% if active_household and active_household.pk == h.pk %}text-emy-pink-600{% else %}text-emy-ink-soft{% endif %}">
+                            <span class="flex items-center gap-2"><span class="h-2 w-2 rounded-full bg-emy-purple-500"></span>{{ h.name }}</span>
+                            {% if active_household and active_household.pk == h.pk %}<span>✓</span>{% endif %}
+                        </button>
+                    </form>
+                {% endfor %}
+                <div class="my-1 border-t border-emy-line"></div>
+                <a href="{% url 'finances:household_create' %}" class="block rounded-xl px-3 py-2 text-sm font-semibold text-emy-purple-600 transition hover:bg-emy-bg">+ Criar novo grupo</a>
+                <a href="{% url 'finances:household_list' %}" class="block rounded-xl px-3 py-2 text-sm font-medium text-emy-ink-soft transition hover:bg-emy-bg">Gerenciar grupos</a>
+            </div>
+        </details>
         <div class="flex items-center gap-3">
             <a href="{% url 'finances:profile_edit' %}" class="hidden text-sm font-medium text-emy-ink-soft transition hover:text-emy-pink-600 sm:inline">{{ user.first_name|default:user.username }}</a>
             <form method="post" action="{% url 'logout' %}">
@@ -35,7 +61,8 @@
     </header>
 {% endif %}
 
-<main class="mx-auto max-w-5xl px-5 {% if user.is_authenticated %}pb-28{% else %}py-6{% endif %}">
+<main class="no-scrollbar flex w-full flex-1 min-h-0 flex-col overflow-y-auto">
+  <div class="mx-auto w-full max-w-5xl px-5 my-auto {% if user.is_authenticated %}pt-6 pb-28{% else %}py-6{% endif %}">
     {% if messages %}
         <div class="mb-5 space-y-2">
             {% for message in messages %}
@@ -49,34 +76,41 @@
         </div>
     {% endif %}
     {% block content %}{% endblock %}
+  </div>
 </main>
 
 {% if user.is_authenticated %}
     {% with url_name=request.resolver_match.url_name %}
-    <nav class="fixed inset-x-0 bottom-5 z-10 mx-auto flex w-fit items-center gap-0.5 rounded-full bg-emy-surface/90 p-2 shadow-[0_12px_40px_-12px_rgba(42,26,54,0.35)] backdrop-blur">
-        <a href="{% url 'finances:dashboard' %}"
-           class="rounded-full px-3.5 py-2.5 text-sm font-semibold transition
+    <nav class="fixed bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded-full bg-emy-surface/90 px-2 py-2 shadow-[0_12px_40px_-12px_rgba(42,26,54,0.35)] backdrop-blur sm:bottom-5">
+        <a href="{% url 'finances:dashboard' %}" aria-label="Início"
+           class="flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold transition sm:px-4 sm:py-2.5
            {% if url_name == 'dashboard' %}bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 text-white{% else %}text-emy-ink-soft hover:text-emy-pink-600{% endif %}">
-            Início
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v10h14V10"/></svg>
+            <span class="hidden sm:inline">Início</span>
         </a>
-        <a href="{% url 'finances:transaction_list' %}"
-           class="rounded-full px-3.5 py-2.5 text-sm font-semibold transition
+        <a href="{% url 'finances:transaction_list' %}" aria-label="Lançamentos"
+           class="flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold transition sm:px-4 sm:py-2.5
            {% if url_name == 'transaction_list' %}bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 text-white{% else %}text-emy-ink-soft hover:text-emy-pink-600{% endif %}">
-            Lançamentos
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h12"/></svg>
+            <span class="hidden sm:inline">Lançamentos</span>
         </a>
-        <a href="{% url 'finances:investment_list' %}"
-           class="rounded-full px-3.5 py-2.5 text-sm font-semibold transition
+        <a href="{% url 'finances:investment_list' %}" aria-label="Investir"
+           class="flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold transition sm:px-4 sm:py-2.5
            {% if 'investment' in url_name or 'contribution' in url_name %}bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 text-white{% else %}text-emy-ink-soft hover:text-emy-pink-600{% endif %}">
-            Investir
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>
+            <span class="hidden sm:inline">Investir</span>
         </a>
-        <a href="{% url 'finances:category_list' %}"
-           class="rounded-full px-3.5 py-2.5 text-sm font-semibold transition
+        <a href="{% url 'finances:category_list' %}" aria-label="Categorias"
+           class="flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold transition sm:px-4 sm:py-2.5
            {% if url_name == 'category_list' %}bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 text-white{% else %}text-emy-ink-soft hover:text-emy-pink-600{% endif %}">
-            Categorias
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></svg>
+            <span class="hidden sm:inline">Categorias</span>
         </a>
         <a href="{% url 'finances:transaction_create' %}"
-           class="grid h-11 w-11 place-items-center rounded-full bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 text-2xl font-light text-white shadow-md transition hover:opacity-90"
-           aria-label="Novo lançamento">+</a>
+           class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 text-white shadow-md transition hover:opacity-90 sm:h-11 sm:w-11"
+           aria-label="Novo lançamento">
+            <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        </a>
     </nav>
     {% endwith %}
 {% endif %}
@@ -122,6 +156,16 @@
 
         // Finish on first paint and when restored from the back/forward cache.
         window.addEventListener('pageshow', function () { done(); });
+
+        // Close the scope dropdown when clicking outside of it.
+        var scopeMenu = document.getElementById('scope-menu');
+        if (scopeMenu) {
+            document.addEventListener('click', function (e) {
+                if (scopeMenu.open && !scopeMenu.contains(e.target)) {
+                    scopeMenu.open = false;
+                }
+            });
+        }
     })();
 </script>
 </body>

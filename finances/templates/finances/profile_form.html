@@ -2,32 +2,32 @@
 {% block title %}{% if form.instance.pk %}Meu perfil{% else %}Complete seu perfil{% endif %} - Emy{% endblock %}
 
 {% block content %}
-<div class="mx-auto max-w-lg">
-    <div class="mb-5 flex items-center gap-3">
-        <button type="button" onclick="history.back()" aria-label="Voltar"
-                class="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emy-surface text-lg text-emy-ink-soft shadow-sm transition hover:text-emy-pink-600">
-            ←
-        </button>
-        <div>
-            <h1 class="text-3xl font-extrabold tracking-tight">
-                {% if form.instance.pk %}Meu perfil{% else %}Quase lá ✨{% endif %}
-            </h1>
-            <p class="mt-1 text-sm text-emy-ink-soft">
-                {% if form.instance.pk %}Atualize suas informações pessoais.{% else %}Conte um pouco sobre você para começar.{% endif %}
-            </p>
-        </div>
-    </div>
+<div class="mb-5">
+    <button type="button" onclick="history.back()" aria-label="Voltar"
+            class="grid h-10 w-10 place-items-center rounded-full bg-emy-surface text-lg text-emy-ink-soft shadow-sm transition hover:text-emy-pink-600">
+        ←
+    </button>
+</div>
+<form method="post" novalidate
+      class="grid overflow-hidden rounded-[2.5rem] bg-emy-surface shadow-[0_30px_80px_-30px_rgba(42,26,54,0.45)] md:grid-cols-2">
+    {% csrf_token %}
 
-    <form method="post" novalidate
-          class="rounded-[2rem] bg-emy-surface p-6 shadow-[0_30px_80px_-30px_rgba(42,26,54,0.45)] sm:p-8">
-        {% csrf_token %}
+    <div class="bg-gradient-to-br from-emy-pink-100 via-emy-pink-50 to-emy-purple-100 p-8 sm:p-10">
+        <h1 class="text-3xl font-extrabold tracking-tight">
+            {% if form.instance.pk %}Meu perfil{% else %}Quase lá ✨{% endif %}
+        </h1>
+        <p class="mt-1 text-sm text-emy-ink-soft">
+            {% if form.instance.pk %}Atualize suas informações pessoais.{% else %}Conte um pouco sobre você para começar.{% endif %}
+        </p>
 
         {% if form.non_field_errors %}
-            <div class="mb-5 rounded-2xl bg-emy-bad/10 px-4 py-3 text-sm text-emy-bad">
+            <div class="mt-5 rounded-2xl bg-emy-bad/10 px-4 py-3 text-sm text-emy-bad">
                 {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
             </div>
         {% endif %}
+    </div>
 
+    <div class="p-8 sm:p-10">
         <div class="space-y-5">
             <div class="grid grid-cols-2 gap-4">
                 <div>
@@ -68,6 +68,6 @@
                 ✓ Salvar perfil
             </button>
         </div>
-    </form>
-</div>
+    </div>
+</form>
 {% endblock %}
