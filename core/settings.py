@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'finances',
     'tailwind',
     'theme',
+    'axes',
 ]
 
 # Tailwind CSS
@@ -60,6 +61,14 @@ MIDDLEWARE = [
     'finances.middleware.ProfileCompletionMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    # AxesMiddleware must come last so it sees the final auth outcome.
+    'axes.middleware.AxesMiddleware',
+]
+
+# Auth backends: AxesStandaloneBackend first to enforce login lockouts.
+AUTHENTICATION_BACKENDS = [
+    'axes.backends.AxesStandaloneBackend',
+    'django.contrib.auth.backends.ModelBackend',
 ]
 
 ROOT_URLCONF = 'core.urls'
@@ -139,3 +148,26 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'finances:dashboard'
 LOGOUT_REDIRECT_URL = 'login'
+
+
+# django-axes: lock out brute-force login attempts.
+AXES_FAILURE_LIMIT = 5
+AXES_COOLOFF_TIME = 1  # hours until the lockout clears
+# Lock the specific IP + username pair, not a whole IP or a whole account.
+AXES_LOCKOUT_PARAMETERS = [["ip_address", "username"]]
+AXES_RESET_ON_SUCCESS = True
+
+
+# Production-only security hardening. Kept off in development (DEBUG=True) so
+# the app still runs over plain HTTP locally; enabled automatically in prod.
+if not DEBUG:
+    SECURE_SSL_REDIRECT = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    # HSTS: tells browsers to only reach the site over HTTPS. Configurable so a
+    # short value can be used while rolling it out; enable carefully.
+    SECURE_HSTS_SECONDS = int(os.environ.get('SECURE_HSTS_SECONDS', '31536000'))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    # Trust the X-Forwarded-Proto header set by the reverse proxy (Nginx).
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')

@@ -1,5 +1,5 @@
 from django import forms
-from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.db.models import Q
@@ -25,6 +25,13 @@ class HouseholdForm(forms.ModelForm):
         }
 
 
+class EmailAuthenticationForm(AuthenticationForm):
+    """Log in by e-mail, matching the lowercase username stored at sign-up."""
+
+    def clean_username(self):
+        return self.cleaned_data.get("username", "").strip().lower()
+
+
 class MemberAddForm(forms.Form):
     email = forms.EmailField()
 
@@ -34,7 +41,9 @@ class MemberAddForm(forms.Form):
             Q(email__iexact=email) | Q(username__iexact=email)
         ).first()
         if user is None:
-            raise ValidationError("Nenhuma conta encontrada com este e-mail.")
+            raise ValidationError(
+                "Não foi possível adicionar este e-mail ao grupo."
+            )
         self.user = user
         return email
 
@@ -75,6 +84,28 @@ class CategoryForm(forms.ModelForm):
             "color": forms.TextInput(attrs={"type": "color"}),
             "icon": forms.TextInput(attrs={"placeholder": "Optional icon name"}),
         }
+
+    def __init__(self, *args, user=None, household=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+        self.household = household
+
+    def clean(self):
+        cleaned_data = super().clean()
+        # On create, attach owner and scope so the uniqueness check can run.
+        if self.instance.pk is None:
+            if self.user is not None:
+                self.instance.user = self.user
+            self.instance.household = self.household
+        return cleaned_data
+
+    def _get_validation_exclusions(self):
+        # user and household are not form fields, so they would be excluded and
+        # the scoped unique constraints skipped. Keep them so full_clean runs them.
+        exclude = super()._get_validation_exclusions()
+        exclude.discard("user")
+        exclude.discard("household")
+        return exclude
 
 
 class TransactionForm(forms.ModelForm):

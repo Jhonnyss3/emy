@@ -77,8 +77,11 @@ model → form → view → url → template
 ## Forms
 
 - `CategoryForm` — `ModelForm` de `Category`, campos `name`, `type`, `color`,
-  `icon`, `is_active`. Widget `type=color` para `color`. O `user` é atribuído
-  na view (`commit=False`), não pelo form.
+  `icon`, `is_active`. Widget `type=color` para `color`. Recebe `user=` e
+  `household=` por kwarg; no `clean()` atribui `instance.user`/`instance.household`
+  (só no create) e mantém esses campos fora do `_get_validation_exclusions`, para
+  que o `full_clean` rode as `UniqueConstraint` de escopo e a categoria duplicada
+  vire erro de form em vez de `IntegrityError` (500).
 - `TransactionForm` — `ModelForm` de `Transaction`. Recebe `user=` por kwarg
   no `__init__` e:
   - filtra o queryset de `category` para mostrar apenas categorias ativas do

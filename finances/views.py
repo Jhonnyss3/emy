@@ -338,16 +338,13 @@ def category_list(request):
 def category_create(request):
     household = get_active_household(request)
     if request.method == "POST":
-        form = CategoryForm(request.POST)
+        form = CategoryForm(request.POST, user=request.user, household=household)
         if form.is_valid():
-            category = form.save(commit=False)
-            category.user = request.user
-            category.household = household
-            category.save()
+            form.save()
             messages.success(request, "Category created.")
             return redirect("finances:category_list")
     else:
-        form = CategoryForm()
+        form = CategoryForm(user=request.user, household=household)
     return render(
         request,
         "finances/category_form.html",
@@ -362,13 +359,17 @@ def category_update(request, pk):
         Category.objects.in_scope(request.user, household), pk=pk
     )
     if request.method == "POST":
-        form = CategoryForm(request.POST, instance=category)
+        form = CategoryForm(
+            request.POST, instance=category, user=request.user, household=household
+        )
         if form.is_valid():
             form.save()
             messages.success(request, "Category updated.")
             return redirect("finances:category_list")
     else:
-        form = CategoryForm(instance=category)
+        form = CategoryForm(
+            instance=category, user=request.user, household=household
+        )
     return render(
         request,
         "finances/category_form.html",

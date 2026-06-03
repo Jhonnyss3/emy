@@ -13,11 +13,17 @@ Listadas em [requirements.txt](../requirements.txt):
 ```
 asgiref==3.11.1
 Django==6.0.5
+django-axes==8.3.1
 django-tailwind==4.4.2
+pytest==9.0.3
+pytest-django==4.12.0
 python-dotenv==1.2.2
 pytailwindcss==0.3.0
 sqlparse==0.5.5
 ```
+
+O `django-axes` exige aplicar suas migrations (`python manage.py migrate`) —
+o passo a passo abaixo já cobre isso.
 
 ## Variáveis de ambiente
 
@@ -37,6 +43,11 @@ python -c "from django.core.management.utils import get_random_secret_key; print
 
 `SECRET_KEY` é obrigatória — o projeto não sobe sem ela. `DEBUG=True` e
 `ALLOWED_HOSTS` vazio são adequados para desenvolvimento.
+
+Em produção (`DEBUG=False`), `core/settings.py` ativa o hardening de segurança
+(SSL redirect, cookies seguros, HSTS, proxy header). A variável opcional
+`SECURE_HSTS_SECONDS` (default 1 ano) controla o `max-age` do HSTS — comece com
+um valor pequeno ao habilitar e aumente depois.
 
 ## Passo a passo
 

@@ -58,12 +58,13 @@ Ao adicionar ou editar funcionalidades em qualquer app, seguir sempre esta ordem
 - **CSRF em todo formulário POST** — `{% csrf_token %}` no template; nunca desabilitar a proteção CSRF.
 - **Ações destrutivas (delete) só via POST**, nunca GET — com tela/etapa de confirmação.
 - **Senhas**: sempre via `django.contrib.auth` (hash PBKDF2). Nunca armazenar, logar ou trafegar senha em texto puro. Manter os `AUTH_PASSWORD_VALIDATORS` ativos.
+- **Proteção contra brute force no login** via `django-axes`: bloqueio após `AXES_FAILURE_LIMIT` (5) tentativas falhas pela combinação IP + username, com cooloff de 1h e reset no sucesso. `AxesStandaloneBackend` é o primeiro em `AUTHENTICATION_BACKENDS` e `AxesMiddleware` é o último em `MIDDLEWARE`. Não remover nem reordenar sem entender o impacto.
 - **Nunca interpolar input do usuário em SQL/HTML cru.** Usar o ORM (que parametriza) e a auto-escape do template engine. Evitar `raw()`, `extra()`, `mark_safe`, `|safe` e `format_html` com dado não confiável.
 - **Validar e tipar todo input** via `Form`/`ModelForm` antes de tocar no banco. Não construir objetos direto de `request.POST`.
 - **Uploads** (quando houver): restringir extensão/tamanho, nunca servir arquivo de usuário como executável, e guardar fora do diretório de código.
 - **Não logar dados sensíveis** (senhas, tokens, PII desnecessária).
-- Em produção: HTTPS obrigatório e habilitar `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, `SECURE_HSTS_SECONDS`.
-- Antes de cada release: rodar `python manage.py check --deploy` e resolver os apontamentos.
+- Em produção: HTTPS obrigatório. O `settings.py` tem um bloco `if not DEBUG:` que ativa automaticamente `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, `SECURE_HSTS_SECONDS` (configurável via env, default 1 ano) + `INCLUDE_SUBDOMAINS`/`PRELOAD` e `SECURE_PROXY_SSL_HEADER` (para o Nginx). Em desenvolvimento (`DEBUG=True`) o bloco fica inerte.
+- Antes de cada release: rodar `python manage.py check --deploy` e resolver os apontamentos (hoje retorna 0 com `DEBUG=False` + `ALLOWED_HOSTS` preenchido).
 
 ---
 
@@ -132,7 +133,7 @@ python manage.py runserver        # inicia o servidor em localhost:8000
 
 Durante o desenvolvimento de UI, manter `python manage.py tailwind start` rodando em outro terminal — recompila o CSS automaticamente a cada alteração de template.
 
-Dependências em `requirements.txt` (Django, asgiref, sqlparse, django-tailwind, pytailwindcss, python-dotenv).
+Dependências em `requirements.txt` (Django, asgiref, sqlparse, django-tailwind, pytailwindcss, python-dotenv, django-axes, pytest, pytest-django).
 
 As variáveis sensíveis (`SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS`) ficam num `.env` na raiz (não versionado), carregado pelo `python-dotenv`. Copie o `.env.example` para `.env` e preencha o `SECRET_KEY` antes de rodar.
 
@@ -319,14 +320,15 @@ Item de uma lista de casa.
 ## Forms
 
 - **`RegistrationForm`** — herda de `UserCreationForm`; campo `email` (obrigatório, único — checado contra `email`/`username`). No `save()` grava o e-mail (em minúsculas) tanto em `user.email` quanto em `user.username`. É o cadastro por e-mail.
-- **`CategoryForm`** — `ModelForm` de `Category`, campos `name`, `type`, `color`, `icon`, `is_active`. Widget `type=color` para `color`. O `user` e o `household` são atribuídos na view (`commit=False`), não pelo form.
+- **`EmailAuthenticationForm`** — herda de `AuthenticationForm`; usado na rota de login (`core/urls.py` aponta a `LoginView` para ele). O `clean_username` normaliza o e-mail (trim + minúsculas) para casar com o `username` gravado em minúsculas no cadastro — login por e-mail **case-insensitive**.
+- **`CategoryForm`** — `ModelForm` de `Category`, campos `name`, `type`, `color`, `icon`, `is_active`. Widget `type=color` para `color`. Recebe `user=` e `household=` por kwarg no `__init__`; no `clean()` atribui `instance.user`/`instance.household` (apenas no create, para não trocar o criador num update de grupo) e sobrescreve `_get_validation_exclusions` para **não** excluir `user`/`household` — assim o `full_clean` roda as `UniqueConstraint` de escopo e a categoria duplicada vira erro de form (não `IntegrityError`/500).
 - **`TransactionForm`** — `ModelForm` de `Transaction`, campos `description`, `amount`, `date`, `type`, `category`, `payment_method`, `notes`. O `__init__` recebe `user=` e `household=` por kwarg e:
   - filtra o queryset de `category` para mostrar apenas categorias **ativas do escopo ativo** (`Category.objects.in_scope(user, household)`);
   - em `clean()`, atribui `self.instance.user` e `self.instance.household` antes de o `Model.clean()` rodar as validações cruzadas.
   - Widgets: `date` (`type=date`), `amount` (`step=0.01`, `min=0.01`), `notes` (textarea).
 - **`ProfileForm`** — `ModelForm` de `Profile`, campos `birth_date` e `phone`, mais os campos declarados `first_name` e `last_name` (que gravam no `User` nativo, não no `Profile`). O `__init__` recebe `user=` por kwarg e pré-popula `first_name`/`last_name` com os valores atuais do `User`. O `save()` grava o `Profile` e o `User` na mesma chamada. Widgets: `birth_date` (`type=date`), `phone` (placeholder).
 - **`HouseholdForm`** — `ModelForm` de `Household`, campo `name`. O `created_by` é atribuído na view.
-- **`MemberAddForm`** — `Form` com campo `email`; valida que existe uma conta com aquele e-mail (busca por `email`/`username`) e expõe o usuário encontrado em `self.user`.
+- **`MemberAddForm`** — `Form` com campo `email`; valida que existe uma conta com aquele e-mail (busca por `email`/`username`) e expõe o usuário encontrado em `self.user`. Mensagem de falha neutra ("Não foi possível adicionar este e-mail ao grupo") para reduzir enumeração de contas.
 - **`InvestmentGoalForm`** — `ModelForm` de `InvestmentGoal`: `name`, `target_amount`, `target_date` (`type=date`). `user`/`household` atribuídos na view.
 - **`ContributionForm`** — `ModelForm` de `InvestmentContribution`: `amount`, `date` (`type=date`), `notes`. `goal`/`user` atribuídos na view.
 - **`HouseholdListForm`** — `ModelForm` de `HouseholdList`, campo `name`.
@@ -376,7 +378,8 @@ Feedback de sucesso/erro é dado via `django.contrib.messages` após cada ação
 **`core/urls.py`:**
 - `admin/` → Django Admin
 - `accounts/register/` → `finances.views.register` (name `register`)
-- `accounts/` → `include("django.contrib.auth.urls")` (login, logout, troca de senha)
+- `accounts/login/` → `LoginView` com `EmailAuthenticationForm` (name `login`) — declarada **antes** do `include` para ter precedência (login por e-mail case-insensitive)
+- `accounts/` → `include("django.contrib.auth.urls")` (logout, troca de senha; o login do include é sombreado pela rota acima)
 - `""` → `include("finances.urls")`
 
 **`finances/urls.py`** (`app_name = "finances"`):
@@ -446,8 +449,9 @@ Todos os templates abaixo já estão na identidade visual Emy/Petal (ver seção
 ## Autenticação
 
 - `User` nativo de `django.contrib.auth` — sem custom user model. Dados pessoais extras vivem no model `Profile` (OneToOne).
-- **Identificador é o e-mail**: o `RegistrationForm` grava o e-mail em `email` e também em `username` (minúsculas). O login usa o form padrão do Django (campo `username`), que funciona com o e-mail por serem iguais — sem backend de auth próprio.
-- Login/logout/troca de senha via `django.contrib.auth.urls`.
+- **Identificador é o e-mail**: o `RegistrationForm` grava o e-mail em `email` e também em `username` (minúsculas). O login usa o `EmailAuthenticationForm` (subclasse do form padrão) que normaliza o input para minúsculas — login **case-insensitive** sem backend de auth próprio.
+- **Brute force**: `django-axes` bloqueia tentativas repetidas de login (ver seção Segurança).
+- Login/logout/troca de senha via `django.contrib.auth.urls`; a rota `accounts/login/` é sobrescrita em `core/urls.py` (antes do `include`) para usar o `EmailAuthenticationForm`.
 - Cadastro via `RegistrationForm` na view `register`, com login automático após sucesso.
 - Após o cadastro, o usuário é redirecionado para `profile_edit` para completar o perfil (nome, data de nascimento, telefone).
 - `ProfileCompletionMiddleware` força o preenchimento: usuário autenticado sem `Profile` é redirecionado para `profile_edit` em qualquer rota (exceto `/admin/`, a própria tela de perfil e o `logout`).
@@ -463,12 +467,15 @@ Todos os templates abaixo já estão na identidade visual Emy/Petal (ver seção
 
 ## Settings relevantes (`core/settings.py`)
 
-- `INSTALLED_APPS` inclui `finances`, `tailwind` e `theme`.
-- `MIDDLEWARE` inclui `finances.middleware.ProfileCompletionMiddleware` (logo após o `AuthenticationMiddleware`).
+- `INSTALLED_APPS` inclui `finances`, `tailwind`, `theme` e `axes`.
+- `MIDDLEWARE` inclui `finances.middleware.ProfileCompletionMiddleware` (logo após o `AuthenticationMiddleware`) e `axes.middleware.AxesMiddleware` (por último).
+- `AUTHENTICATION_BACKENDS` = `axes.backends.AxesStandaloneBackend` (primeiro) + `django.contrib.auth.backends.ModelBackend`.
+- Config do `django-axes`: `AXES_FAILURE_LIMIT = 5`, `AXES_COOLOFF_TIME = 1` (h), `AXES_LOCKOUT_PARAMETERS = [["ip_address", "username"]]`, `AXES_RESET_ON_SUCCESS = True`.
 - `TAILWIND_APP_NAME = 'theme'`.
 - `DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'`.
 - `TEMPLATES['OPTIONS']['context_processors']` inclui `finances.context_processors.scope` (expõe `active_household` e `user_households`).
 - `SECRET_KEY`, `DEBUG` e `ALLOWED_HOSTS` vêm de variáveis de ambiente, carregadas de um `.env` na raiz pelo `python-dotenv` (`load_dotenv()` no topo do `settings.py`). `SECRET_KEY` é obrigatória (`os.environ['SECRET_KEY']`); `DEBUG` tem default seguro `False`. O `.env` está no `.gitignore`; o `.env.example` é o modelo versionado.
+- Bloco `if not DEBUG:` no fim do arquivo ativa o hardening de produção (SSL redirect, cookies seguros, HSTS via `SECURE_HSTS_SECONDS`, `SECURE_PROXY_SSL_HEADER`).
 - Banco: SQLite em `BASE_DIR / 'db.sqlite3'`.
 
 ---
@@ -497,3 +504,7 @@ Todos os templates abaixo já estão na identidade visual Emy/Petal (ver seção
 - **Desktop 50/50**: a partir de `lg:`, as telas usam duas colunas (`lg:grid-cols-2`); o dashboard tem uma linha de cards de stat (`lg:grid-cols-4`) + recentes/listas; os forms usam "card dividido" (`md:grid-cols-2`). O mobile permanece em coluna única.
 - **Barra de loading sem dependência**: `#page-loader` no `base.html` + JS vanilla; dá feedback de navegação no app server-rendered. Mesmo estilo pontual de JS já usado (toggle de senha, fechar dropdown).
 - **Inputs renderizados campo a campo nos templates**: para ter controle total das classes Tailwind sem tocar em `forms.py`/`views.py`, os formulários (`login`, `register`, `transaction_form`, `category_form`, `profile_form`, telas de grupo) renderizam cada `<input>`/`<select>` manualmente com o `name=` correto, repondo o valor via `form.<campo>.value` e os erros via `form.<campo>.errors`. `type` e `category` viram radios estilizados (toggle/pills).
+- **Validação de unicidade de `Category` no form (não só no banco)**: o `CategoryForm` mantém `user`/`household` fora do `_get_validation_exclusions` para que o `full_clean` rode as `UniqueConstraint` de escopo. Antes, como o `user`/`household` eram setados só na view (após o `is_valid`), a categoria duplicada passava no form e estourava `IntegrityError` (500). Mensagem amigável via `violation_error_message` (pt-BR) nas constraints, que aparece em `non_field_errors`. Defesa em profundidade: a constraint do banco continua sendo a barreira final.
+- **Brute force com `django-axes` (não solução caseira)**: escolhido o pacote padrão de mercado em vez de rate limit próprio — robusto e funciona em produção multi-worker (handler em banco). Lockout pela combinação IP + username para não causar DoS de conta (um atacante de outro IP não tranca a vítima) nem trancar todos atrás de um NAT por um único username.
+- **Login por e-mail case-insensitive via form, não backend custom**: como o cadastro já grava o `username` em minúsculas, o `EmailAuthenticationForm` só normaliza o input no login. Evita um backend de autenticação próprio (que complicaria a integração com o `django-axes`).
+- **Selo "Beta V0.1" no header**: pílula pequena (tokens `emy-purple-*`) ao lado do logo no `base.html`, visível em mobile e desktop (compacta o bastante para não exigir variação por breakpoint).

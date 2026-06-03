@@ -26,8 +26,20 @@ não só por `request.user` — e continua sendo a barreira central e
 
 - O identificador da conta é o **e-mail**: o `RegistrationForm` grava o e-mail
   em `email` e também em `username` (em minúsculas), validando unicidade. O
-  login usa o form padrão do Django (campo `username`), que funciona com o
-  e-mail por serem iguais. Não há custom user model nem backend de auth próprio.
+  login usa o `EmailAuthenticationForm` (subclasse de `AuthenticationForm` que
+  normaliza o input para minúsculas), então o login por e-mail é
+  **case-insensitive**. A rota `accounts/login/` é declarada em `core/urls.py`
+  antes do `include` de `auth.urls` para usar esse form. Não há custom user
+  model nem backend de auth próprio.
+- **Brute force**: `django-axes` bloqueia tentativas repetidas de login —
+  `AXES_FAILURE_LIMIT = 5`, cooloff de 1h, lockout pela combinação IP +
+  username (`AXES_LOCKOUT_PARAMETERS`), reset no sucesso. `AxesStandaloneBackend`
+  é o primeiro em `AUTHENTICATION_BACKENDS` e `AxesMiddleware` é o último em
+  `MIDDLEWARE`. O bloqueio devolve HTTP 429.
+- **Enumeração de contas**: o `member_add` usa mensagem de falha neutra para não
+  confirmar a existência de um e-mail. O cadastro ainda informa e-mail já
+  usado (necessário para a UX); mitigá-lo por completo exigiria confirmação por
+  e-mail (fora do escopo atual).
 - Toda view de dados leva `@login_required`. `register` é a única view
   pública e isso é uma decisão consciente.
 - `ProfileCompletionMiddleware` redireciona usuário autenticado sem `Profile`
@@ -64,7 +76,12 @@ não só por `request.user` — e continua sendo a barreira central e
   variável de mesmo nome.
 - `DEBUG = False` em produção. `ALLOWED_HOSTS` restrito em produção.
 - Não logar dados sensíveis (senhas, tokens, PII desnecessária).
-- Em produção: HTTPS obrigatório e habilitar `SECURE_SSL_REDIRECT`,
-  `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, `SECURE_HSTS_SECONDS`.
+- Em produção: HTTPS obrigatório. Um bloco `if not DEBUG:` no fim de
+  `core/settings.py` ativa automaticamente `SECURE_SSL_REDIRECT`,
+  `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, `SECURE_HSTS_SECONDS`
+  (configurável via env, default 1 ano) + `SECURE_HSTS_INCLUDE_SUBDOMAINS`,
+  `SECURE_HSTS_PRELOAD` e `SECURE_PROXY_SSL_HEADER` (para o reverse proxy).
+  Em desenvolvimento (`DEBUG=True`) o bloco fica inerte.
 - Antes de cada release: rodar `python manage.py check --deploy` e resolver
-  os apontamentos.
+  os apontamentos. Com `DEBUG=False` + `ALLOWED_HOSTS` preenchido, hoje
+  retorna 0 issues.

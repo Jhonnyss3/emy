@@ -103,7 +103,8 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a
 `core/urls.py`:
 - `admin/` → Django Admin
 - `accounts/register/` → `register`
-- `accounts/` → `django.contrib.auth.urls` (login, logout, troca de senha)
+- `accounts/login/` → `LoginView` com `EmailAuthenticationForm` (name `login`), antes do `include` para ter precedência (login por e-mail case-insensitive)
+- `accounts/` → `django.contrib.auth.urls` (logout, troca de senha)
 - `""` → `finances.urls`
 
 `finances/urls.py` (`app_name = "finances"`):
@@ -148,8 +149,10 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a
 
 ## Settings relevantes (`core/settings.py`)
 
-- `INSTALLED_APPS` inclui `finances`, `tailwind` e `theme`.
-- `MIDDLEWARE` inclui `finances.middleware.ProfileCompletionMiddleware`, logo após o `AuthenticationMiddleware` — força usuário autenticado sem `Profile` a completar o perfil.
+- `INSTALLED_APPS` inclui `finances`, `tailwind`, `theme` e `axes`.
+- `MIDDLEWARE` inclui `finances.middleware.ProfileCompletionMiddleware`, logo após o `AuthenticationMiddleware` — força usuário autenticado sem `Profile` a completar o perfil — e `axes.middleware.AxesMiddleware` por último.
+- `AUTHENTICATION_BACKENDS`: `axes.backends.AxesStandaloneBackend` (primeiro) + `django.contrib.auth.backends.ModelBackend`.
+- `django-axes`: `AXES_FAILURE_LIMIT = 5`, `AXES_COOLOFF_TIME = 1` (h), `AXES_LOCKOUT_PARAMETERS = [["ip_address", "username"]]`, `AXES_RESET_ON_SUCCESS = True` — ver [security.md](security.md).
 - `TAILWIND_APP_NAME = 'theme'`.
 - `DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'`.
 - `AUTH_PASSWORD_VALIDATORS` com a configuração padrão do Django.
@@ -157,5 +160,5 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a
   `LOGIN_REDIRECT_URL = 'finances:dashboard'`, `LOGOUT_REDIRECT_URL = 'login'`.
 - Banco: SQLite em `BASE_DIR / 'db.sqlite3'`.
 - `SECRET_KEY`, `DEBUG` e `ALLOWED_HOSTS` vêm de variáveis de ambiente,
-  carregadas de um `.env` na raiz pelo `python-dotenv` — ver
-  [security.md](security.md).
+  carregadas de um `.env` na raiz pelo `python-dotenv`. Bloco `if not DEBUG:`
+  ativa o hardening de produção — ver [security.md](security.md).

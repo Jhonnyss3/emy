@@ -5,7 +5,7 @@ import pytest
 from django.core.exceptions import ValidationError
 from django.urls import reverse
 
-from .forms import RegistrationForm
+from .forms import CategoryForm, RegistrationForm
 from .models import (
     Category,
     Household,
@@ -350,3 +350,86 @@ def test_non_member_cannot_open_list(client, other, household):
     client.force_login(other)  # not a member
     resp = client.get(reverse("finances:list_detail", args=[house_list.pk]))
     assert resp.status_code == 404
+
+
+# --- Category duplicate handling via form/view (RF06) -----------------------
+
+CAT_DATA = {"name": "Mercado", "type": "expense", "color": "#3498db", "is_active": "on"}
+
+
+def test_category_form_rejects_duplicate_personal(user):
+    Category.objects.create(user=user, name="Mercado", type="expense")
+    form = CategoryForm(CAT_DATA, user=user, household=None)
+    assert not form.is_valid()
+    assert "__all__" in form.errors
+
+
+def test_category_form_rejects_duplicate_group(user, household):
+    Category.objects.create(
+        user=user, household=household, name="Mercado", type="expense"
+    )
+    form = CategoryForm(CAT_DATA, user=user, household=household)
+    assert not form.is_valid()
+
+
+def test_category_form_allows_same_name_other_scope(user, household):
+    Category.objects.create(user=user, name="Mercado", type="expense")
+    form = CategoryForm(CAT_DATA, user=user, household=household)
+    assert form.is_valid(), form.errors
+
+
+def test_category_create_view_handles_duplicate(client, user):
+    client.force_login(user)
+    client.post(reverse("finances:category_create"), CAT_DATA)
+    resp = client.post(reverse("finances:category_create"), CAT_DATA)
+    # second submit is re-rendered with an error, not a 500
+    assert resp.status_code == 200
+    assert Category.objects.filter(user=user, name="Mercado").count() == 1
+
+
+def test_category_update_keeps_creator(client, user, other, household):
+    HouseholdMembership.objects.create(household=household, user=other)
+    cat = Category.objects.create(
+        user=user, household=household, name="Mercado", type="expense"
+    )
+    client.force_login(other)
+    client.post(reverse("finances:scope_switch"), {"scope": str(household.pk)})
+    client.post(
+        reverse("finances:category_update", args=[cat.pk]),
+        {**CAT_DATA, "name": "Mercado 2"},
+    )
+    cat.refresh_from_db()
+    assert cat.name == "Mercado 2"
+    assert cat.user == user  # editing does not steal authorship
+
+
+# --- Login by e-mail is case-insensitive ------------------------------------
+
+
+def test_login_case_insensitive(client, user):
+    resp = client.post(
+        reverse("login"), {"username": "ANA@Test.com", "password": "pass-12345"}
+    )
+    assert resp.status_code == 302
+
+
+def test_login_wrong_password_fails(client, user):
+    resp = client.post(
+        reverse("login"), {"username": "ana@test.com", "password": "wrong"}
+    )
+    assert resp.status_code == 200  # re-rendered, not authenticated
+
+
+# --- Brute-force lockout (django-axes) --------------------------------------
+
+
+def test_login_lockout_after_failures(client, user):
+    for _ in range(5):
+        client.post(
+            reverse("login"), {"username": "ana@test.com", "password": "wrong"}
+        )
+    # once locked out, even the correct password is blocked
+    resp = client.post(
+        reverse("login"), {"username": "ana@test.com", "password": "pass-12345"}
+    )
+    assert resp.status_code == 429

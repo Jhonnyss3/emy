@@ -156,11 +156,13 @@ class Category(models.Model):
                 fields=["user", "name", "type"],
                 condition=models.Q(household__isnull=True),
                 name="unique_personal_category",
+                violation_error_message="Você já tem uma categoria com esse nome e tipo.",
             ),
             models.UniqueConstraint(
                 fields=["household", "name", "type"],
                 condition=models.Q(household__isnull=False),
                 name="unique_household_category",
+                violation_error_message="O grupo já tem uma categoria com esse nome e tipo.",
             ),
         ]
 
