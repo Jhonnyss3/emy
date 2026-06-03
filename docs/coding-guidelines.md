@@ -82,14 +82,19 @@ model → form → view → url → template
   (só no create) e mantém esses campos fora do `_get_validation_exclusions`, para
   que o `full_clean` rode as `UniqueConstraint` de escopo e a categoria duplicada
   vire erro de form em vez de `IntegrityError` (500).
-- `TransactionForm` — `ModelForm` de `Transaction`. Recebe `user=` por kwarg
-  no `__init__` e:
+- `TransactionForm` — `ModelForm` de `Transaction`. Recebe `user=`/`household=`
+  por kwarg no `__init__` e:
   - filtra o queryset de `category` para mostrar apenas categorias ativas do
-    próprio usuário;
-  - em `clean()`, atribui `self.instance.user` antes de o `Model.clean()`
-    rodar as validações cruzadas.
+    escopo ativo;
+  - em `clean()`, atribui `self.instance.user`/`self.instance.household` antes
+    de o `Model.clean()` rodar as validações cruzadas;
+  - campo não-model `installments` (1–60): acima de 1, o `amount` é o total e a
+    view gera N parcelas mensais (`_save_installments`).
   - Widgets: `date` (`type=date`), `amount` (`step=0.01`, `min=0.01`),
     `notes` (textarea).
+- `RecurringTransactionForm` — `ModelForm` de `RecurringTransaction` (conta
+  fixa). Mesmo padrão: recebe `user=`/`household=`, filtra categorias do escopo
+  e atribui `user`/`household` no `clean()`.
 - `ProfileForm` — `ModelForm` de `Profile`, campos `birth_date` e `phone`,
   mais os campos declarados `first_name` e `last_name` (que gravam no `User`
   nativo, não no `Profile`). Recebe `user=` por kwarg no `__init__` e

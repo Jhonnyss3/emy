@@ -7,24 +7,39 @@
 <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
     <div>
         <h1 class="text-3xl font-extrabold tracking-tight">Lançamentos</h1>
-        <p class="mt-1 text-sm text-emy-ink-soft">Tudo o que entrou e saiu.</p>
+        <div class="mt-2 flex items-center gap-2">
+            <a href="?month={{ prev_month }}{% if type_filter %}&type={{ type_filter }}{% endif %}" aria-label="Mês anterior"
+               class="grid h-9 w-9 place-items-center rounded-full bg-emy-surface text-lg text-emy-ink-soft shadow-sm transition hover:text-emy-pink-600">‹</a>
+            <span class="min-w-[8.5rem] text-center text-sm font-bold text-emy-ink">{{ month_label }}</span>
+            <a href="?month={{ next_month }}{% if type_filter %}&type={{ type_filter }}{% endif %}" aria-label="Próximo mês"
+               class="grid h-9 w-9 place-items-center rounded-full bg-emy-surface text-lg text-emy-ink-soft shadow-sm transition hover:text-emy-pink-600">›</a>
+            {% if not is_current_month %}
+                <a href="{% url 'finances:transaction_list' %}{% if type_filter %}?type={{ type_filter }}{% endif %}" class="ml-1 rounded-full px-3 py-1.5 text-xs font-bold text-emy-pink-600 hover:underline">Hoje</a>
+            {% endif %}
+        </div>
     </div>
-    <a href="{% url 'finances:transaction_create' %}"
-       class="rounded-full bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 px-5 py-2.5 text-sm font-bold text-white shadow-[0_14px_30px_-10px_rgba(139,92,246,0.6)] transition hover:opacity-95">
-        + Lançamento
-    </a>
+    <div class="flex items-center gap-2">
+        <a href="{% url 'finances:recurring_list' %}"
+           class="rounded-full bg-emy-surface px-4 py-2.5 text-sm font-bold text-emy-ink-soft shadow-sm transition hover:text-emy-pink-600">
+            ↻ Contas fixas
+        </a>
+        <a href="{% url 'finances:transaction_create' %}"
+           class="rounded-full bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 px-5 py-2.5 text-sm font-bold text-white shadow-[0_14px_30px_-10px_rgba(139,92,246,0.6)] transition hover:opacity-95">
+            + Lançamento
+        </a>
+    </div>
 </div>
 
 <div class="mb-5 flex flex-wrap gap-2">
-    <a href="{% url 'finances:transaction_list' %}"
+    <a href="?month={{ ref_month|date:'Y-m' }}"
        class="rounded-full px-4 py-2 text-sm font-semibold transition {% if not type_filter %}bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 text-white{% else %}bg-emy-surface text-emy-ink-soft hover:text-emy-pink-600{% endif %}">
         Todos
     </a>
-    <a href="?type=income"
+    <a href="?month={{ ref_month|date:'Y-m' }}&type=income"
        class="rounded-full px-4 py-2 text-sm font-semibold transition {% if type_filter == 'income' %}bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 text-white{% else %}bg-emy-surface text-emy-ink-soft hover:text-emy-pink-600{% endif %}">
         Receitas
     </a>
-    <a href="?type=expense"
+    <a href="?month={{ ref_month|date:'Y-m' }}&type=expense"
        class="rounded-full px-4 py-2 text-sm font-semibold transition {% if type_filter == 'expense' %}bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 text-white{% else %}bg-emy-surface text-emy-ink-soft hover:text-emy-pink-600{% endif %}">
         Despesas
     </a>
@@ -39,7 +54,10 @@
                 <a href="{% url 'finances:transaction_update' t.pk %}" class="flex min-w-0 flex-1 items-center gap-3">
                     <span class="h-9 w-9 shrink-0 rounded-xl" style="background:{{ t.category.color }}"></span>
                     <div class="min-w-0">
-                        <p class="truncate text-sm font-semibold">{{ t.description }}</p>
+                        <p class="truncate text-sm font-semibold">
+                            {{ t.description }}
+                            {% if t.installment_label %}<span class="ml-1 rounded-full bg-emy-purple-100 px-1.5 py-0.5 text-[10px] font-bold text-emy-purple-700">{{ t.installment_label }}</span>{% endif %}
+                        </p>
                         <p class="truncate text-xs text-emy-ink-mute">
                             {{ t.category.name }} · {{ t.get_payment_method_display }} · {{ t.date|date:"d M Y" }}
                         </p>

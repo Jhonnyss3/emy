@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Contas fixas - Emy{% endblock %}
+
+{% block content %}
+<div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+    <div>
+        <h1 class="text-3xl font-extrabold tracking-tight">Contas fixas</h1>
+        <p class="mt-1 text-sm text-emy-ink-soft">Despesas e receitas que se repetem todo mês.</p>
+    </div>
+    <a href="{% url 'finances:recurring_create' %}"
+       class="rounded-full bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 px-5 py-2.5 text-sm font-bold text-white shadow-[0_14px_30px_-10px_rgba(139,92,246,0.6)] transition hover:opacity-95">
+        + Conta fixa
+    </a>
+</div>
+
+<div class="grid gap-4 sm:grid-cols-2">
+    {% for bill in bills %}
+        <div class="flex items-center gap-3 rounded-[1.5rem] bg-emy-surface p-5 shadow-[0_20px_50px_-30px_rgba(42,26,54,0.4)]">
+            <span class="h-10 w-10 shrink-0 rounded-xl" style="background:{{ bill.category.color }}"></span>
+            <div class="min-w-0 flex-1">
+                <p class="flex items-center gap-2 truncate text-sm font-bold">
+                    {{ bill.description }}
+                    {% if not bill.is_active %}<span class="rounded-full bg-emy-bg px-1.5 py-0.5 text-[10px] font-bold text-emy-ink-mute">pausada</span>{% endif %}
+                </p>
+                <p class="truncate text-xs text-emy-ink-mute">{{ bill.category.name }} · todo dia {{ bill.day }}</p>
+            </div>
+            <div class="shrink-0 text-right">
+                <p class="text-sm font-bold {% if bill.type == 'income' %}text-emy-good{% else %}text-emy-bad{% endif %}">
+                    {% if bill.type == 'income' %}+{% else %}−{% endif %} R$ {{ bill.amount|floatformat:2 }}
+                </p>
+                <div class="mt-1 flex items-center justify-end gap-2">
+                    <a href="{% url 'finances:recurring_update' bill.pk %}"
+                       class="rounded-full px-2.5 py-1 text-xs font-bold text-emy-ink-soft transition hover:bg-emy-bg-warm hover:text-emy-pink-600">
+                        Editar
+                    </a>
+                    <a href="{% url 'finances:recurring_delete' bill.pk %}"
+                       class="rounded-full px-2.5 py-1 text-xs font-bold text-emy-ink-soft transition hover:bg-emy-bad/10 hover:text-emy-bad">
+                        Excluir
+                    </a>
+                </div>
+            </div>
+        </div>
+    {% empty %}
+        <div class="rounded-2xl bg-emy-bg px-4 py-12 text-center sm:col-span-2">
+            <p class="text-sm text-emy-ink-soft">Nenhuma conta fixa ainda.</p>
+            <a href="{% url 'finances:recurring_create' %}" class="mt-2 inline-block text-sm font-bold text-emy-pink-600 hover:underline">
+                Cadastrar a primeira
+            </a>
+        </div>
+    {% endfor %}
+</div>
+{% endblock %}

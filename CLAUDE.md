@@ -228,16 +228,37 @@ Lançamento individual de receita ou despesa — pessoal ou compartilhado em gru
 - `type` CharField(10) — choices de `TransactionType`
 - `payment_method` CharField(15) — choices de `PaymentMethod`, default `cash`
 - `notes` TextField — opcional (`blank=True`)
+- `installment_group` UUIDField (`null=True`, `db_index=True`, `editable=False`) — agrupa as parcelas de uma mesma compra parcelada
+- `installment_number` / `installment_total` PositiveSmallInteger (`null=True`) — ex.: 2 de 12
+- `recurring_source` FK → `RecurringTransaction` (`null=True`, `on_delete=SET_NULL`, `related_name="generated"`) — preenchido quando a transação foi gerada por uma conta fixa
 - `created_at` DateTimeField — `auto_now_add`
 - `updated_at` DateTimeField — `auto_now`
 - `Meta`: `ordering = ["-date", "-created_at"]`
 - Manager `TransactionQuerySet.in_scope(user, household)`
 - `signed_amount` @property — valor com sinal: negativo para despesa, positivo para receita
+- `installment_label` @property — `"2/12"` para parcelas, vazio caso contrário
 - `clean()`:
   - faz trim da descrição
   - valida a categoria por escopo: com `household`, a categoria deve ser do mesmo grupo; sem, deve ser pessoal e do mesmo `user`
   - valida que `category.type == transaction.type`
 - `__str__` — `"{description} - {amount}"`
+
+### RecurringTransaction
+
+Conta fixa (UI: "conta fixa") — despesa/receita aberta que se repete todo mês, sem fim, até ser pausada. Diferente do parcelamento (que tem número de parcelas), a conta fixa é materializada **sob demanda**: ao abrir um mês no dashboard/lista, gera-se a `Transaction` daquele mês se ainda não existir.
+
+- `user` FK → `auth.User` (`on_delete=CASCADE`, `related_name="recurring_transactions"`) — criador
+- `household` FK → `Household` (`null=True, blank=True`, `on_delete=CASCADE`, `related_name="recurring_transactions"`) — nulo = pessoal; preenchido = do grupo
+- `category` FK → `Category` (`on_delete=PROTECT`, `related_name="recurring_transactions"`)
+- `description` CharField(200); `amount` Decimal(12,2) `MinValueValidator(0.01)`
+- `type` CharField(10) — choices de `TransactionType`; `payment_method` CharField(15) — choices de `PaymentMethod`, default `cash`
+- `start_date` DateField — a partir de quando recorre; o **dia** da cobrança vem dela
+- `is_active` Boolean — default `True`; pausar (`False`) interrompe a geração
+- `created_at` DateTimeField — `auto_now_add`
+- Manager `RecurringTransactionQuerySet.in_scope(user, household)`
+- `day` @property — `start_date.day`
+- `clean()` — trim da descrição + valida categoria por escopo e `category.type == type` (mesmas regras de `Transaction`)
+- `__str__` — `"{description} (fixo)"`
 
 ### Profile
 
@@ -325,7 +346,9 @@ Item de uma lista de casa.
 - **`TransactionForm`** — `ModelForm` de `Transaction`, campos `description`, `amount`, `date`, `type`, `category`, `payment_method`, `notes`. O `__init__` recebe `user=` e `household=` por kwarg e:
   - filtra o queryset de `category` para mostrar apenas categorias **ativas do escopo ativo** (`Category.objects.in_scope(user, household)`);
   - em `clean()`, atribui `self.instance.user` e `self.instance.household` antes de o `Model.clean()` rodar as validações cruzadas.
+  - Campo não-model `installments` (1–60): acima de 1, o `amount` informado é o **total** e a view gera N parcelas mensais. O `clean()` rejeita se o valor for insuficiente (cada parcela precisa de pelo menos `0.01`).
   - Widgets: `date` (`type=date`), `amount` (`step=0.01`, `min=0.01`), `notes` (textarea).
+- **`RecurringTransactionForm`** — `ModelForm` de `RecurringTransaction`, campos `description`, `amount`, `type`, `category`, `payment_method`, `start_date`, `is_active`. Mesmo padrão do `TransactionForm`: recebe `user=`/`household=`, filtra categorias do escopo e atribui `user`/`household` no `clean()`.
 - **`ProfileForm`** — `ModelForm` de `Profile`, campos `birth_date` e `phone`, mais os campos declarados `first_name` e `last_name` (que gravam no `User` nativo, não no `Profile`). O `__init__` recebe `user=` por kwarg e pré-popula `first_name`/`last_name` com os valores atuais do `User`. O `save()` grava o `Profile` e o `User` na mesma chamada. Widgets: `birth_date` (`type=date`), `phone` (placeholder).
 - **`HouseholdForm`** — `ModelForm` de `Household`, campo `name`. O `created_by` é atribuído na view.
 - **`MemberAddForm`** — `Form` com campo `email`; valida que existe uma conta com aquele e-mail (busca por `email`/`username`) e expõe o usuário encontrado em `self.user`. Mensagem de falha neutra ("Não foi possível adicionar este e-mail ao grupo") para reduzir enumeração de contas.
@@ -345,15 +368,18 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a �
 | `register` | `register` | Cadastro via `RegistrationForm` (e-mail); login automático; redireciona para `profile_edit`. |
 | `profile_edit` | `finances:profile_edit` | Cria/edita o `Profile` do usuário pelo `ProfileForm`. É a tela que o `register` abre logo após o cadastro. |
 | `scope_switch` | `finances:scope_switch` | Troca o escopo ativo (pessoal ou grupo) na sessão. |
-| `dashboard` | `finances:dashboard` | Resumo do mês + 10 recentes, no escopo ativo (`in_scope`). |
-| `transaction_list` | `finances:transaction_list` | Lista as transações do escopo ativo; filtro por tipo via `?type=income\|expense`. |
+| `dashboard` | `finances:dashboard` | Resumo do mês selecionado (`?month=AAAA-MM`, default atual) + lançamentos do mês, no escopo ativo. Materializa as contas fixas do mês ao abrir. |
+| `forecast` | `finances:forecast` | Previsão dos próximos 6 meses: transações reais + contas fixas ativas ainda não materializadas (sem dupla contagem). |
+| `transaction_list` | `finances:transaction_list` | Lista as transações do mês selecionado (`?month=`) no escopo ativo; filtro por tipo via `?type=income\|expense`. Materializa as contas fixas do mês. |
 | `transaction_create` | `finances:transaction_create` | Cria transação no escopo ativo. |
 | `transaction_update` | `finances:transaction_update` | Edita transação dentro do escopo (`get_object_or_404(...in_scope...)`). |
 | `transaction_delete` | `finances:transaction_delete` | Exclui transação após confirmação via POST. |
 | `category_list` | `finances:category_list` | Lista as categorias do escopo ativo. |
 | `category_create` | `finances:category_create` | Cria categoria; `user` e `household` atribuídos na view. |
 | `category_update` | `finances:category_update` | Edita categoria dentro do escopo. |
-| `category_delete` | `finances:category_delete` | Exclui categoria; bloqueia se houver transações vinculadas (`PROTECT`). |
+| `category_delete` | `finances:category_delete` | Exclui categoria; bloqueia se houver transações **ou contas fixas** vinculadas (`PROTECT`). |
+| `recurring_list` | `finances:recurring_list` | Lista as contas fixas do escopo ativo. |
+| `recurring_create/update/delete` | `finances:recurring_*` | CRUD de conta fixa (dentro do escopo); o create materializa o mês corrente. |
 | `household_list` | `finances:household_list` | Lista os grupos do usuário. |
 | `household_create` | `finances:household_create` | Cria grupo + membership do dono (atômico). |
 | `household_detail` | `finances:household_detail` | Membros do grupo; o dono adiciona/remove. |
@@ -385,6 +411,7 @@ Feedback de sucesso/erro é dado via `django.contrib.messages` após cada ação
 **`finances/urls.py`** (`app_name = "finances"`):
 - `""` → `dashboard`
 - `profile/` → `profile_edit`
+- `forecast/` → `forecast`
 - `scope/switch/` → `scope_switch`
 - `transactions/` → `transaction_list`
 - `transactions/new/` → `transaction_create`
@@ -394,6 +421,7 @@ Feedback de sucesso/erro é dado via `django.contrib.messages` após cada ação
 - `categories/new/` → `category_create`
 - `categories/<int:pk>/edit/` → `category_update`
 - `categories/<int:pk>/delete/` → `category_delete`
+- `recurring/`, `recurring/new/`, `recurring/<int:pk>/edit/`, `recurring/<int:pk>/delete/` → contas fixas (`recurring_*`)
 - `groups/` → `household_list`
 - `groups/new/` → `household_create`
 - `groups/<int:pk>/` → `household_detail`
@@ -410,14 +438,17 @@ Feedback de sucesso/erro é dado via `django.contrib.messages` após cada ação
 
 Todos os templates abaixo já estão na identidade visual Emy/Petal (ver seção Frontend / TailwindCSS).
 
-- `base.html` — **app shell**: `<body>` em `h-[100dvh] flex flex-col overflow-hidden` (a página nunca rola) e `<main>` como única área rolável (`overflow-y-auto no-scrollbar`, conteúdo centralizado por `my-auto`). Header (logo + **seletor de escopo em dropdown** + usuário/Sair); nav inferior flutuante de **ícones** (Início / Lançamentos / Investir / Categorias / `+`, item ativo via `request.resolver_match`, rótulo só a partir de `sm:`); barra de loading no topo (disparada por cliques/submits); bloco de mensagens. O seletor de escopo é um `<details>` com Pessoal + grupos (`user_households`) + "Criar novo grupo". Desktop usa layout 50/50 (ver Decisões). Estilização 100% Tailwind, sem `<style>` inline.
+- `base.html` — **app shell**: `<body>` em `h-[100dvh] flex flex-col overflow-hidden` (a página nunca rola) e `<main>` como única área rolável (`overflow-y-auto no-scrollbar`, conteúdo centralizado por `my-auto`). Header (logo + selo "Beta V0.1" + **seletor de escopo em dropdown** + usuário/Sair); nav inferior flutuante de **ícones** (Início / Lançamentos / **Previsão** / Investir / Categorias / `+`, item ativo via `request.resolver_match`, rótulo só a partir de `sm:`); barra de loading no topo (disparada por cliques/submits); bloco de mensagens. O seletor de escopo é um `<details>` com Pessoal + grupos (`user_households`) + "Criar novo grupo". Desktop usa layout 50/50 (ver Decisões). Estilização 100% Tailwind, sem `<style>` inline.
 - `finances/scope_switch.html` — escolha do escopo ativo (Pessoal ou um grupo) + link "Gerenciar grupos".
 - `finances/household_list.html` — lista de grupos + "Novo grupo".
 - `finances/household_form.html` — criação de grupo (nome).
 - `finances/household_detail.html` — membros do grupo; o dono adiciona membro por e-mail e remove membros.
-- `finances/dashboard.html` — saudação (usa `first_name`), card de saldo com gradiente (saldo/entrou/saiu/investido) + atalho "Listas da casa" (só em escopo de grupo) + lista de lançamentos recentes.
-- `finances/transaction_list.html` — pills de filtro por tipo + lista de transações em cards arredondados.
-- `finances/transaction_form.html` — card dividido: toggle Despesa/Receita, valor grande, pills de categoria, data, método de pagamento e observações.
+- `finances/dashboard.html` — saudação (usa `first_name`), **navegação por mês** (setas ‹ ›, atalho "Hoje"), card de saldo com gradiente (saldo/entrou/saiu/investido) + atalho "Listas da casa" (só em escopo de grupo) + lançamentos do mês selecionado (com selo "2/12" nas parcelas).
+- `finances/forecast.html` — previsão dos próximos 6 meses em cards (saldo previsto + entrou/saiu); cada card abre aquele mês no dashboard. Mês atual destacado em gradiente.
+- `finances/transaction_list.html` — navegação por mês + pills de filtro por tipo (preservam o mês) + atalho "Contas fixas" + lista de transações (selo "2/12" nas parcelas).
+- `finances/transaction_form.html` — card dividido: toggle Despesa/Receita, valor grande, pills de categoria, data, método de pagamento, **parcelas** (só na criação) e observações.
+- `finances/recurring_list.html` — grid de cards das contas fixas (valor, dia, ativa/pausada) + ações.
+- `finances/recurring_form.html` — card dividido de conta fixa (tipo, valor mensal, categoria, a partir de, método, ativa).
 - `finances/category_list.html` — grid de cards de categoria.
 - `finances/category_form.html` — formulário de criação/edição de categoria (toggle de tipo, cor, ícone, ativo).
 - `finances/profile_form.html` — formulário de perfil (nome, sobrenome, data de nascimento, telefone). Usado tanto no preenchimento pós-cadastro quanto na edição.
@@ -508,3 +539,7 @@ Todos os templates abaixo já estão na identidade visual Emy/Petal (ver seção
 - **Brute force com `django-axes` (não solução caseira)**: escolhido o pacote padrão de mercado em vez de rate limit próprio — robusto e funciona em produção multi-worker (handler em banco). Lockout pela combinação IP + username para não causar DoS de conta (um atacante de outro IP não tranca a vítima) nem trancar todos atrás de um NAT por um único username.
 - **Login por e-mail case-insensitive via form, não backend custom**: como o cadastro já grava o `username` em minúsculas, o `EmailAuthenticationForm` só normaliza o input no login. Evita um backend de autenticação próprio (que complicaria a integração com o `django-axes`).
 - **Selo "Beta V0.1" no header**: pílula pequena (tokens `emy-purple-*`) ao lado do logo no `base.html`, visível em mobile e desktop (compacta o bastante para não exigir variação por breakpoint).
+- **Parcelamento materializado (N transações reais)**: uma compra "em 12x" gera 12 `Transaction` reais, uma por mês, ligadas por `installment_group` (UUID) e numeradas (`installment_number`/`installment_total`). Reusa toda a infra de escopo/dashboard/lista — cada parcela cai no saldo do seu mês. O `amount` informado é o **total**, dividido igualmente; a última parcela absorve o arredondamento (`ROUND_DOWN` + resto). Geração atômica em `_save_installments`.
+- **Conta fixa materializada sob demanda**: `RecurringTransaction` é um template aberto (sem fim). Como não dá para materializar infinitas transações, `_materialize_recurring(user, household, year, month)` cria a ocorrência do mês **quando o mês é aberto** (dashboard/lista), de forma idempotente (checa por `recurring_source` + ano/mês). Não gera antes do `start_date` nem quando `is_active=False`. As ocorrências são `Transaction` reais (editáveis, entram no saldo) com `recurring_source` setado; ao excluir a conta fixa, `SET_NULL` preserva o histórico.
+- **Previsão calculada, não materializada**: a tela `forecast` projeta os próximos 6 meses somando transações reais + contas fixas ativas que **ainda não** foram materializadas naquele mês (filtra pelo conjunto de `recurring_source` já presentes), evitando dupla contagem. Não cria nada — o mês só "se concretiza" (materializa) quando aberto na navegação.
+- **Navegação por mês**: dashboard e lista passaram de "mês corrente fixo" para `?month=AAAA-MM` (helper `_resolve_month`), com setas e rótulo pt-BR (`MONTHS_PT`, pois `LANGUAGE_CODE` é en-us). É o que permite enxergar parcelas e contas fixas dos meses futuros.

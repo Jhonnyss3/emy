@@ -1,4 +1,7 @@
-from decimal import Decimal
+import calendar
+import uuid
+from datetime import date, timedelta
+from decimal import ROUND_DOWN, Decimal
 
 from django.contrib import messages
 from django.contrib.auth import login
@@ -17,6 +20,7 @@ from .forms import (
     InvestmentGoalForm,
     MemberAddForm,
     ProfileForm,
+    RecurringTransactionForm,
     RegistrationForm,
     TransactionForm,
 )
@@ -27,6 +31,7 @@ from .models import (
     HouseholdMembership,
     InvestmentContribution,
     InvestmentGoal,
+    RecurringTransaction,
     Transaction,
     TransactionType,
 )
@@ -40,6 +45,61 @@ def get_active_household(request):
     return (
         Household.objects.for_user(request.user).filter(pk=household_id).first()
     )
+
+
+MONTHS_PT = [
+    "", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+    "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+]
+
+
+def _resolve_month(request):
+    """Reference month (1st day) from ?month=YYYY-MM, defaulting to the current month."""
+    today = timezone.localdate()
+    ref = today.replace(day=1)
+    raw = request.GET.get("month")
+    if raw:
+        try:
+            year, month = raw.split("-")
+            ref = date(int(year), int(month), 1)
+        except (ValueError, TypeError):
+            pass
+    prev_month = (ref - timedelta(days=1)).replace(day=1)
+    next_month = (ref.replace(day=28) + timedelta(days=7)).replace(day=1)
+    return {
+        "ref_month": ref,
+        "prev_month": prev_month.strftime("%Y-%m"),
+        "next_month": next_month.strftime("%Y-%m"),
+        "month_label": f"{MONTHS_PT[ref.month]} {ref.year}",
+        "is_current_month": ref == today.replace(day=1),
+    }
+
+
+def _materialize_recurring(user, household, year, month):
+    """Create the transaction for each active fixed bill in the given month, once."""
+    last_day = calendar.monthrange(year, month)[1]
+    bills = RecurringTransaction.objects.in_scope(user, household).filter(
+        is_active=True,
+        start_date__lte=date(year, month, last_day),
+    )
+    for bill in bills:
+        already = Transaction.objects.filter(
+            recurring_source=bill, date__year=year, date__month=month
+        ).exists()
+        if already:
+            continue
+        day = min(bill.start_date.day, last_day)
+        Transaction.objects.create(
+            user=bill.user,
+            household=bill.household,
+            category=bill.category,
+            description=bill.description,
+            amount=bill.amount,
+            date=date(year, month, day),
+            type=bill.type,
+            payment_method=bill.payment_method,
+            recurring_source=bill,
+        )
 
 
 @login_required
@@ -208,12 +268,14 @@ def profile_edit(request):
 
 @login_required
 def dashboard(request):
-    """Show a summary of the current month plus the latest transactions."""
+    """Show a summary of the selected month plus that month's transactions."""
     household = get_active_household(request)
-    today = timezone.localdate()
+    month = _resolve_month(request)
+    ref = month["ref_month"]
+    _materialize_recurring(request.user, household, ref.year, ref.month)
     month_qs = Transaction.objects.in_scope(request.user, household).filter(
-        date__year=today.year,
-        date__month=today.month,
+        date__year=ref.year,
+        date__month=ref.month,
     )
 
     income = month_qs.filter(type=TransactionType.INCOME).aggregate(
@@ -226,28 +288,87 @@ def dashboard(request):
     # Investment contributions in the active scope count as money out of the cash flow.
     invested = InvestmentContribution.objects.filter(
         goal__in=InvestmentGoal.objects.in_scope(request.user, household),
-        date__year=today.year,
-        date__month=today.month,
+        date__year=ref.year,
+        date__month=ref.month,
     ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
 
     context = {
-        "today": today,
+        **month,
         "income": income,
         "expense": expense,
         "invested": invested,
         "balance": income - expense - invested,
-        "recent": Transaction.objects.in_scope(request.user, household)
-        .select_related("category")[:10],
+        "recent": month_qs.select_related("category")[:10],
     }
     return render(request, "finances/dashboard.html", context)
 
 
 @login_required
-def transaction_list(request):
-    """List the transactions in the active scope, optionally filtered by type."""
+def forecast(request):
+    """Project the next months: real transactions plus fixed bills not yet materialized."""
     household = get_active_household(request)
-    transactions = Transaction.objects.in_scope(
-        request.user, household
+    base = timezone.localdate().replace(day=1)
+    bills = list(
+        RecurringTransaction.objects.in_scope(request.user, household).filter(
+            is_active=True
+        )
+    )
+    months = []
+    for i in range(6):
+        ref = _add_months(base, i)
+        last_day = calendar.monthrange(ref.year, ref.month)[1]
+        month_end = date(ref.year, ref.month, last_day)
+        scope_tx = Transaction.objects.in_scope(request.user, household).filter(
+            date__year=ref.year, date__month=ref.month
+        )
+        income = scope_tx.filter(type=TransactionType.INCOME).aggregate(
+            total=Sum("amount")
+        )["total"] or Decimal("0")
+        expense = scope_tx.filter(type=TransactionType.EXPENSE).aggregate(
+            total=Sum("amount")
+        )["total"] or Decimal("0")
+        invested = InvestmentContribution.objects.filter(
+            goal__in=InvestmentGoal.objects.in_scope(request.user, household),
+            date__year=ref.year,
+            date__month=ref.month,
+        ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
+
+        # Add fixed bills that have not been materialized into this month yet,
+        # so projected months are not double-counted against real transactions.
+        materialized = set(
+            scope_tx.exclude(recurring_source=None).values_list(
+                "recurring_source_id", flat=True
+            )
+        )
+        for bill in bills:
+            if bill.start_date > month_end or bill.id in materialized:
+                continue
+            if bill.type == TransactionType.INCOME:
+                income += bill.amount
+            else:
+                expense += bill.amount
+
+        months.append({
+            "label": f"{MONTHS_PT[ref.month]} {ref.year}",
+            "month_param": ref.strftime("%Y-%m"),
+            "income": income,
+            "expense": expense,
+            "balance": income - expense - invested,
+            "is_current": ref == base,
+        })
+    return render(request, "finances/forecast.html", {"months": months})
+
+
+@login_required
+def transaction_list(request):
+    """List the selected month's transactions in the active scope, optionally by type."""
+    household = get_active_household(request)
+    month = _resolve_month(request)
+    ref = month["ref_month"]
+    _materialize_recurring(request.user, household, ref.year, ref.month)
+    transactions = Transaction.objects.in_scope(request.user, household).filter(
+        date__year=ref.year,
+        date__month=ref.month,
     ).select_related("category")
     type_filter = request.GET.get("type")
     if type_filter in TransactionType.values:
@@ -256,8 +377,43 @@ def transaction_list(request):
     return render(
         request,
         "finances/transaction_list.html",
-        {"transactions": transactions, "type_filter": type_filter},
+        {**month, "transactions": transactions, "type_filter": type_filter},
     )
+
+
+def _add_months(d, n):
+    """Return the date n months after d, clamping the day to the month's length."""
+    month_index = d.month - 1 + n
+    year = d.year + month_index // 12
+    month = month_index % 12 + 1
+    day = min(d.day, calendar.monthrange(year, month)[1])
+    return date(year, month, day)
+
+
+def _save_installments(form, installments):
+    """Create one transaction per month, splitting the total amount evenly."""
+    base = form.instance
+    total = base.amount
+    group = uuid.uuid4()
+    per = (total / installments).quantize(Decimal("0.01"), rounding=ROUND_DOWN)
+    with transaction.atomic():
+        for i in range(installments):
+            # Last installment absorbs the rounding remainder.
+            amount = per if i < installments - 1 else total - per * (installments - 1)
+            Transaction.objects.create(
+                user=base.user,
+                household=base.household,
+                category=base.category,
+                description=base.description,
+                amount=amount,
+                date=_add_months(base.date, i),
+                type=base.type,
+                payment_method=base.payment_method,
+                notes=base.notes,
+                installment_group=group,
+                installment_number=i + 1,
+                installment_total=installments,
+            )
 
 
 @login_required
@@ -268,8 +424,15 @@ def transaction_create(request):
             request.POST, user=request.user, household=household
         )
         if form.is_valid():
-            form.save()
-            messages.success(request, "Transaction created.")
+            installments = form.cleaned_data.get("installments") or 1
+            if installments > 1:
+                _save_installments(form, installments)
+                messages.success(
+                    request, f"Lançamento parcelado em {installments}x criado."
+                )
+            else:
+                form.save()
+                messages.success(request, "Transaction created.")
             return redirect("finances:transaction_list")
     else:
         form = TransactionForm(user=request.user, household=household)
@@ -384,7 +547,7 @@ def category_delete(request, pk):
         Category.objects.in_scope(request.user, household), pk=pk
     )
     if request.method == "POST":
-        if category.transactions.exists():
+        if category.transactions.exists() or category.recurring_transactions.exists():
             messages.error(
                 request,
                 "This category still has transactions and cannot be deleted.",
@@ -397,6 +560,85 @@ def category_delete(request, pk):
         request,
         "finances/confirm_delete.html",
         {"object": category, "title": "Delete category"},
+    )
+
+
+@login_required
+def recurring_list(request):
+    household = get_active_household(request)
+    bills = RecurringTransaction.objects.in_scope(
+        request.user, household
+    ).select_related("category")
+    return render(
+        request, "finances/recurring_list.html", {"bills": bills}
+    )
+
+
+@login_required
+def recurring_create(request):
+    household = get_active_household(request)
+    if request.method == "POST":
+        form = RecurringTransactionForm(
+            request.POST, user=request.user, household=household
+        )
+        if form.is_valid():
+            form.save()
+            today = timezone.localdate()
+            _materialize_recurring(request.user, household, today.year, today.month)
+            messages.success(request, "Conta fixa criada.")
+            return redirect("finances:recurring_list")
+    else:
+        form = RecurringTransactionForm(
+            user=request.user,
+            household=household,
+            initial={"start_date": timezone.localdate()},
+        )
+    return render(
+        request,
+        "finances/recurring_form.html",
+        {"form": form, "title": "Nova conta fixa"},
+    )
+
+
+@login_required
+def recurring_update(request, pk):
+    household = get_active_household(request)
+    bill = get_object_or_404(
+        RecurringTransaction.objects.in_scope(request.user, household), pk=pk
+    )
+    if request.method == "POST":
+        form = RecurringTransactionForm(
+            request.POST, instance=bill, user=request.user, household=household
+        )
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Conta fixa atualizada.")
+            return redirect("finances:recurring_list")
+    else:
+        form = RecurringTransactionForm(
+            instance=bill, user=request.user, household=household
+        )
+    return render(
+        request,
+        "finances/recurring_form.html",
+        {"form": form, "title": "Editar conta fixa"},
+    )
+
+
+@login_required
+def recurring_delete(request, pk):
+    household = get_active_household(request)
+    bill = get_object_or_404(
+        RecurringTransaction.objects.in_scope(request.user, household), pk=pk
+    )
+    if request.method == "POST":
+        bill.delete()
+        messages.success(request, "Conta fixa excluída.")
+        return redirect("finances:recurring_list")
+    return render(
+        request,
+        "finances/confirm_delete.html",
+        {"object": bill, "title": "Excluir conta fixa"},
     )
 
 

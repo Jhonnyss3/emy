@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{% if form.instance.pk %}Editar lançamento{% else %}Novo lançamento{% endif %} - Emy{% endblock %}
+{% block title %}{% if form.instance.pk %}Editar conta fixa{% else %}Nova conta fixa{% endif %} - Emy{% endblock %}
 
 {% block content %}
 <div class="mb-5">
@@ -14,11 +14,9 @@
 
     <div class="bg-gradient-to-br from-emy-pink-100 via-emy-pink-50 to-emy-purple-100 p-8 sm:p-10">
         <h1 class="text-3xl font-extrabold tracking-tight">
-            {% if form.instance.pk %}Editar lançamento{% else %}Novo lançamento ✨{% endif %}
+            {% if form.instance.pk %}Editar conta fixa{% else %}Nova conta fixa ✨{% endif %}
         </h1>
-        <p class="mt-1 text-sm text-emy-ink-soft">
-            {% if form.instance.pk %}Ajuste o que precisar.{% else %}Rapidinho, prometo.{% endif %}
-        </p>
+        <p class="mt-1 text-sm text-emy-ink-soft">Repete todo mês até você pausar.</p>
 
         {% if form.non_field_errors %}
             <div class="mt-5 rounded-2xl bg-emy-bad/10 px-4 py-3 text-sm text-emy-bad">
@@ -45,7 +43,7 @@
         {% for error in form.type.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
 
         <div class="mt-6">
-            <p class="text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Quanto foi?</p>
+            <p class="text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Valor mensal</p>
             <div class="mt-2 flex items-baseline gap-2">
                 <span class="text-2xl font-bold text-emy-ink-mute">R$</span>
                 <input type="number" name="amount" step="0.01" min="0.01" required
@@ -56,9 +54,9 @@
         </div>
 
         <div class="mt-6">
-            <label for="id_description" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">O que foi?</label>
+            <label for="id_description" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">O que é?</label>
             <input type="text" name="description" id="id_description" required
-                   value="{{ form.description.value|default:'' }}" placeholder="Compra da semana — Hortifruti"
+                   value="{{ form.description.value|default:'' }}" placeholder="Aluguel"
                    class="w-full rounded-2xl bg-white/80 px-4 py-3 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">
             {% for error in form.description.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
         </div>
@@ -86,10 +84,11 @@
 
         <div class="mt-6 grid grid-cols-2 gap-4">
             <div>
-                <label for="id_date" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Data</label>
-                <input type="date" name="date" id="id_date" required value="{{ form.date.value|default:'' }}"
+                <label for="id_start_date" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">A partir de</label>
+                <input type="date" name="start_date" id="id_start_date" required value="{{ form.start_date.value|default:'' }}"
                        class="w-full rounded-2xl bg-emy-bg px-4 py-3 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">
-                {% for error in form.date.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
+                <p class="mt-1 text-xs text-emy-ink-mute">O dia define quando a conta cai todo mês.</p>
+                {% for error in form.start_date.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
             </div>
             <div>
                 <label for="id_payment_method" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Pago com</label>
@@ -103,28 +102,17 @@
             </div>
         </div>
 
-        {% if not form.instance.pk %}
-        <div class="mt-6">
-            <label for="id_installments" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Parcelas</label>
-            <input type="number" name="installments" id="id_installments" min="1" max="60"
-                   value="{{ form.installments.value|default:'1' }}"
-                   class="w-full rounded-2xl bg-emy-bg px-4 py-3 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">
-            <p class="mt-1 text-xs text-emy-ink-mute">Acima de 1, o valor é dividido e lançado nos próximos meses.</p>
-            {% for error in form.installments.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
-        </div>
-        {% endif %}
-
-        <div class="mt-6">
-            <label for="id_notes" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Observações</label>
-            <textarea name="notes" id="id_notes" rows="3" placeholder="Opcional"
-                      class="w-full rounded-2xl bg-emy-bg px-4 py-3 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">{{ form.notes.value|default:'' }}</textarea>
-            {% for error in form.notes.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
-        </div>
+        <label class="mt-6 flex items-center gap-3">
+            <input type="checkbox" name="is_active" value="on"
+                   {% if form.is_active.value or not form.instance.pk %}checked{% endif %}
+                   class="h-5 w-5 rounded-md accent-emy-pink-500">
+            <span class="text-sm font-semibold text-emy-ink-soft">Ativa (gera lançamento todo mês)</span>
+        </label>
 
         <div class="mt-8 flex">
             <button type="submit"
                     class="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 px-5 py-3 text-sm font-bold text-white shadow-[0_14px_30px_-10px_rgba(139,92,246,0.6)] transition hover:opacity-95">
-                ✓ Salvar lançamento
+                ✓ Salvar conta fixa
             </button>
         </div>
     </div>

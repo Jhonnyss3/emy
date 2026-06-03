@@ -58,10 +58,13 @@ maior que a tela, volta ao topo e rola por dentro, sem barra visível).
   usuário/Sair. O seletor é um `<details>` que abre um menu com "Pessoal" + os
   grupos do usuário (✓ no ativo, troca via POST para `scope_switch`) +
   "Criar novo grupo" / "Gerenciar grupos". Fecha ao clicar fora (JS).
-- **Nav inferior:** barra flutuante de ícones (Início / Lançamentos / Investir
-  / Categorias + botão `+`), centralizada, presente no mobile **e** no desktop.
-  Cada item tem ícone (SVG) sempre visível e rótulo que aparece a partir de
-  `sm:`. Item ativo via `request.resolver_match`.
+- **Nav inferior:** barra flutuante de ícones (Início / Lançamentos / Previsão /
+  Investir / Categorias + botão `+`), centralizada, presente no mobile **e** no
+  desktop. Cada item tem ícone (SVG) sempre visível e rótulo que aparece a
+  partir de `sm:`. Item ativo via `request.resolver_match`.
+- **Navegação por mês:** o dashboard e a lista de lançamentos têm setas ‹ › com
+  o rótulo do mês (pt-BR) e atalho "Hoje"; trocam o mês via `?month=AAAA-MM`.
+  As contas fixas se materializam ao abrir o mês.
 - **Barra de loading:** `#page-loader` no topo (gradiente) disparada por
   cliques em links internos e submits; finaliza no `pageshow`.
 
@@ -91,9 +94,12 @@ pelo app `finances`, que tem o seu próprio `base.html`.
 | `finances/household_list.html` | Lista dos grupos do usuário + botão "Novo grupo". |
 | `finances/household_form.html` | Criação de grupo (nome). |
 | `finances/household_detail.html` | Membros do grupo; o dono adiciona membro por e-mail e remove membros. |
-| `finances/dashboard.html` | Cabeçalho (saudação + "+ Lançar"), linha de 4 cards de stat (Saldo destaque / Entrou / Saiu / Investido) e área inferior com "Lançamentos recentes" + card "Listas da casa" (em grupo). Layout 50/50 no desktop. |
-| `finances/transaction_list.html` | Pills de filtro por tipo + lista de transações em cards arredondados. |
-| `finances/transaction_form.html` | Card dividido: toggle Despesa/Receita, valor grande, pills de categoria, data, método, observações. |
+| `finances/dashboard.html` | Cabeçalho (saudação + navegação por mês + "+ Lançar"), linha de 4 cards de stat (Saldo destaque / Entrou / Saiu / Investido) do mês selecionado e área inferior com lançamentos do mês (selo "2/12" nas parcelas) + card "Listas da casa" (em grupo). Layout 50/50 no desktop. |
+| `finances/forecast.html` | Previsão dos próximos 6 meses em cards (saldo previsto + entrou/saiu); cada card abre o mês no dashboard; mês atual em gradiente. |
+| `finances/transaction_list.html` | Navegação por mês + pills de filtro por tipo (preservam o mês) + atalho "Contas fixas" + lista de transações (selo "2/12" nas parcelas). |
+| `finances/transaction_form.html` | Card dividido: toggle Despesa/Receita, valor grande, pills de categoria, data, método, parcelas (só na criação), observações. |
+| `finances/recurring_list.html` | Grid de cards das contas fixas (valor, dia, ativa/pausada) + ações. |
+| `finances/recurring_form.html` | Card dividido de conta fixa (tipo, valor mensal, categoria, a partir de, método, ativa). |
 | `finances/category_list.html` | Grid de cards de categoria. |
 | `finances/category_form.html` | Formulário de categoria (toggle de tipo, cor, ícone, ativo). |
 | `finances/profile_form.html` | Formulário de perfil (nome, sobrenome, data de nascimento, telefone). Usado no preenchimento pós-cadastro e na edição. |

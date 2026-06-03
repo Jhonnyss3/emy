@@ -49,6 +49,9 @@ Lançamento individual de receita ou despesa, pertencente a um usuário.
 | `type` | CharField(10) | choices de `TransactionType` |
 | `payment_method` | CharField(15) | choices de `PaymentMethod`, default `cash` |
 | `notes` | TextField | opcional (`blank=True`) |
+| `installment_group` | UUIDField | `null=True`, `db_index=True`, `editable=False` — agrupa as parcelas de uma compra parcelada |
+| `installment_number` / `installment_total` | PositiveSmallInteger | `null=True` — ex.: 2 de 12 |
+| `recurring_source` | FK → `RecurringTransaction` | `null=True`, `on_delete=SET_NULL`, `related_name="generated"` — set quando a transação foi gerada por uma conta fixa |
 | `created_at` | DateTimeField | `auto_now_add` |
 | `updated_at` | DateTimeField | `auto_now` |
 
@@ -57,12 +60,40 @@ Lançamento individual de receita ou despesa, pertencente a um usuário.
   escopo ativo (pessoal ou grupo).
 - `signed_amount` @property — valor com sinal: negativo para despesa,
   positivo para receita. Calculado na leitura, não persistido.
+- `installment_label` @property — `"2/12"` para parcelas, vazio caso contrário.
 - `clean()`:
   - faz trim da descrição;
   - valida a categoria por escopo: se há `household`, a categoria deve ser do
     mesmo grupo; se é pessoal, a categoria deve ser pessoal e do mesmo `user`;
   - valida que `category.type == transaction.type`.
 - `__str__` — `"{description} - {amount}"`.
+
+## RecurringTransaction
+
+Conta fixa (UI: "conta fixa") — despesa/receita aberta que se repete todo mês,
+sem fim, até ser pausada. Diferente do parcelamento (que tem número fixo de
+parcelas), é materializada **sob demanda**.
+
+| Campo | Tipo | Observação |
+|---|---|---|
+| `user` | FK → `auth.User` | `on_delete=CASCADE`, `related_name="recurring_transactions"` |
+| `household` | FK → `Household` | `null=True, blank=True`, CASCADE — nulo = pessoal; preenchido = grupo |
+| `category` | FK → `Category` | `on_delete=PROTECT`, `related_name="recurring_transactions"` |
+| `description` | CharField(200) | |
+| `amount` | DecimalField(12,2) | `MinValueValidator(0.01)` — valor mensal |
+| `type` | CharField(10) | choices de `TransactionType` |
+| `payment_method` | CharField(15) | choices de `PaymentMethod`, default `cash` |
+| `start_date` | DateField | a partir de quando recorre; o dia da cobrança vem dela |
+| `is_active` | Boolean | default `True`; pausar interrompe a geração |
+| `created_at` | DateTimeField | `auto_now_add` |
+
+- Manager `RecurringTransactionQuerySet.in_scope(user, household)`.
+- `day` @property — `start_date.day`.
+- `clean()` — trim da descrição + valida categoria por escopo e
+  `category.type == type` (mesmas regras de `Transaction`).
+- A materialização (`_materialize_recurring` na view) cria a `Transaction` do
+  mês ao abrir o dashboard/lista, de forma idempotente; ao excluir a conta fixa,
+  `Transaction.recurring_source` vira `NULL` (preserva o histórico).
 
 ## Profile
 

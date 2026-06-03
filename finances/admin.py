@@ -8,6 +8,7 @@ from .models import (
     HouseholdMembership,
     InvestmentContribution,
     InvestmentGoal,
+    RecurringTransaction,
     Transaction,
 )
 
@@ -68,6 +69,24 @@ class TransactionAdmin(admin.ModelAdmin):
     autocomplete_fields = ("user", "household", "category")
     date_hierarchy = "date"
     ordering = ("-date",)
+
+
+@admin.register(RecurringTransaction)
+class RecurringTransactionAdmin(admin.ModelAdmin):
+    list_display = (
+        "description",
+        "amount",
+        "type",
+        "category",
+        "start_date",
+        "is_active",
+        "user",
+        "household",
+    )
+    list_filter = ("type", "is_active", "household", "start_date")
+    search_fields = ("description", "user__username")
+    autocomplete_fields = ("user", "household", "category")
+    ordering = ("description",)
 
 
 class InvestmentContributionInline(admin.TabularInline):

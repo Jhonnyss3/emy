@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django import forms
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.contrib.auth.models import User
@@ -12,6 +14,7 @@ from .models import (
     InvestmentContribution,
     InvestmentGoal,
     Profile,
+    RecurringTransaction,
     Transaction,
 )
 
@@ -109,6 +112,11 @@ class CategoryForm(forms.ModelForm):
 
 
 class TransactionForm(forms.ModelForm):
+    # Non-model field: how many monthly installments to split this entry into.
+    installments = forms.IntegerField(
+        required=False, min_value=1, max_value=60, initial=1
+    )
+
     class Meta:
         model = Transaction
         fields = (
@@ -136,9 +144,55 @@ class TransactionForm(forms.ModelForm):
                 user, household
             ).filter(is_active=True)
 
+    def clean_installments(self):
+        return self.cleaned_data.get("installments") or 1
+
     def clean(self):
         cleaned_data = super().clean()
         # Attach owner and scope before model.clean() runs the cross-field checks.
+        if self.user is not None:
+            self.instance.user = self.user
+        self.instance.household = self.household
+        # Each installment must still be worth at least the minimum amount.
+        installments = cleaned_data.get("installments") or 1
+        amount = cleaned_data.get("amount")
+        if installments > 1 and amount is not None:
+            if amount < Decimal("0.01") * installments:
+                self.add_error(
+                    "installments",
+                    "Valor insuficiente para esse número de parcelas.",
+                )
+        return cleaned_data
+
+
+class RecurringTransactionForm(forms.ModelForm):
+    class Meta:
+        model = RecurringTransaction
+        fields = (
+            "description",
+            "amount",
+            "type",
+            "category",
+            "payment_method",
+            "start_date",
+            "is_active",
+        )
+        widgets = {
+            "start_date": forms.DateInput(attrs={"type": "date"}),
+            "amount": forms.NumberInput(attrs={"step": "0.01", "min": "0.01"}),
+        }
+
+    def __init__(self, *args, user=None, household=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+        self.household = household
+        if user is not None:
+            self.fields["category"].queryset = Category.objects.in_scope(
+                user, household
+            ).filter(is_active=True)
+
+    def clean(self):
+        cleaned_data = super().clean()
         if self.user is not None:
             self.instance.user = self.user
         self.instance.household = self.household
