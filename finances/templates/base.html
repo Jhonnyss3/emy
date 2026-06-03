@@ -11,6 +11,9 @@
     {% tailwind_css %}
 </head>
 <body class="min-h-screen bg-emy-bg font-sans text-emy-ink antialiased">
+<div id="page-loader" class="pointer-events-none fixed inset-x-0 top-0 z-50 h-0.5 opacity-0 transition-opacity duration-300">
+    <div id="page-loader-bar" class="h-full w-0 bg-gradient-to-r from-emy-pink-500 to-emy-purple-500 shadow-[0_0_10px_rgba(236,72,153,0.6)] transition-[width] duration-300 ease-out"></div>
+</div>
 {% if user.is_authenticated %}
     <header class="mx-auto flex max-w-5xl items-center justify-between px-5 py-5">
         <a href="{% url 'finances:dashboard' %}" class="flex items-center gap-2">
@@ -72,5 +75,49 @@
     </nav>
     {% endwith %}
 {% endif %}
+
+<script>
+    (function () {
+        var loader = document.getElementById('page-loader');
+        var bar = document.getElementById('page-loader-bar');
+        var timer;
+
+        function start() {
+            clearInterval(timer);
+            loader.style.opacity = '1';
+            bar.style.width = '0%';
+            requestAnimationFrame(function () { bar.style.width = '75%'; });
+            // Creep toward 90% while the next page loads.
+            timer = setInterval(function () {
+                var w = parseFloat(bar.style.width) || 0;
+                if (w < 90) { bar.style.width = (w + (90 - w) * 0.15) + '%'; }
+            }, 400);
+        }
+
+        function done() {
+            clearInterval(timer);
+            bar.style.width = '100%';
+            loader.style.opacity = '0';
+            setTimeout(function () { bar.style.width = '0%'; }, 300);
+        }
+
+        document.addEventListener('click', function (e) {
+            var a = e.target.closest('a');
+            if (!a) return;
+            var href = a.getAttribute('href');
+            if (!href || href.charAt(0) === '#') return;
+            if (a.target === '_blank' || a.hasAttribute('download')) return;
+            if (a.protocol === 'mailto:' || a.protocol === 'tel:') return;
+            if (a.origin !== window.location.origin) return;
+            if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey) return;
+            start();
+        });
+
+        document.addEventListener('submit', function () { start(); });
+
+        // Finish on first paint and when restored from the back/forward cache.
+        window.addEventListener('pageshow', function () { done(); });
+    })();
+</script>
 </body>
 </html>
