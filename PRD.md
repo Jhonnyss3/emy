@@ -10,8 +10,10 @@
 O **Finances** é uma aplicação web de finanças pessoais que permite a um usuário
 registrar, categorizar e acompanhar suas receitas e despesas ao longo do tempo.
 O sistema oferece um painel (dashboard) com o resumo financeiro do mês corrente,
-gestão completa de transações e categorias, e isolamento total de dados por
-usuário (cada conta enxerga apenas os próprios registros).
+gestão completa de transações e categorias, e isolamento de dados por escopo.
+Cada conta tem finanças **pessoais** privadas e pode participar de **grupos**
+(espaços compartilhados, ex.: a conta da casa de um casal), alternando entre os
+escopos. O acesso é por **e-mail**.
 
 O produto é construído sobre **Django 6** com renderização server-side
 (Django Template Language) e estilização com **TailwindCSS**, usando o banco
@@ -26,7 +28,7 @@ O produto é construído sobre **Django 6** com renderização server-side
 | Nome | Finances |
 | Tipo | Aplicação web (server-rendered) |
 | Domínio | Finanças pessoais / controle de gastos |
-| Modelo de uso | Multiusuário, single-tenant por conta |
+| Modelo de uso | Multiusuário; finanças pessoais privadas + grupos compartilhados |
 | Plataforma | Navegador desktop e mobile (responsivo) |
 | Idioma da interface | Português (Brasil) |
 | Idioma do código | Inglês |
@@ -112,6 +114,12 @@ usuários sobre a mesma carteira (conta compartilhada).
 | RF18 | Após o cadastro, o usuário completa o perfil (nome, sobrenome, data de nascimento, telefone). | Alta |
 | RF19 | Enquanto o perfil não estiver completo, o usuário autenticado é redirecionado para a tela de perfil. | Alta |
 | RF20 | O usuário pode editar o perfil a qualquer momento. | Média |
+| RF21 | O cadastro e o login são feitos por e-mail (gravado também como `username`). | Alta |
+| RF22 | O usuário pode criar grupos e listar os grupos de que participa. | Alta |
+| RF23 | O dono do grupo pode adicionar membros por e-mail e removê-los. | Alta |
+| RF24 | O usuário pode alternar o escopo ativo entre Pessoal e cada grupo. | Alta |
+| RF25 | Dashboard, transações e categorias operam sempre no escopo ativo; dados pessoais ficam privados e dados de grupo são compartilhados entre os membros. | Alta |
+| RF26 | Categorias e transações podem pertencer a um grupo (`household`) ou serem pessoais. | Alta |
 
 ### 6.1 Flowchart Mermaid — fluxos de UX
 
@@ -178,7 +186,7 @@ flowchart TD
 |---|---|---|
 | RNF01 | Segurança | Senhas armazenadas com hash (PBKDF2, padrão Django). |
 | RNF02 | Segurança | Proteção CSRF em todos os formulários POST. |
-| RNF03 | Segurança | Isolamento de dados por usuário em todas as queries (`filter(user=request.user)`). |
+| RNF03 | Segurança | Isolamento de dados por escopo em todas as queries (`Model.objects.in_scope(request.user, household)`); pessoal privado, grupo restrito aos membros. |
 | RNF04 | Segurança | Views de dados protegidas por `@login_required`. |
 | RNF05 | Usabilidade | Interface responsiva (mobile-first) com TailwindCSS. |
 | RNF06 | Usabilidade | Feedback visível em até 1 ação para sucesso/erro. |
@@ -254,6 +262,7 @@ classDiagram
     class Category {
         +int id
         +FK user
+        +FK household
         +String name
         +String type
         +String color
@@ -267,6 +276,7 @@ classDiagram
     class Transaction {
         +int id
         +FK user
+        +FK household
         +FK category
         +String description
         +Decimal amount
@@ -307,9 +317,30 @@ classDiagram
         +__str__()
     }
 
+    class Household {
+        +int id
+        +String name
+        +FK created_by
+        +DateTime created_at
+        +clean()
+        +__str__()
+    }
+
+    class HouseholdMembership {
+        +int id
+        +FK household
+        +FK user
+        +DateTime joined_at
+    }
+
     User "1" --> "0..*" Category : possui
     User "1" --> "0..*" Transaction : possui
     User "1" --> "0..1" Profile : perfil
+    User "1" --> "0..*" Household : cria
+    User "1" --> "0..*" HouseholdMembership : participa
+    Household "1" --> "0..*" HouseholdMembership : tem
+    Household "1" --> "0..*" Category : escopo
+    Household "1" --> "0..*" Transaction : escopo
     Category "1" --> "0..*" Transaction : categoriza (PROTECT)
 
     Category ..> TransactionType : type
@@ -324,6 +355,11 @@ erDiagram
     USER ||--o{ CATEGORY : "possui"
     USER ||--o{ TRANSACTION : "possui"
     USER ||--o| PROFILE : "tem"
+    USER ||--o{ HOUSEHOLD : "cria"
+    USER ||--o{ HOUSEHOLD_MEMBERSHIP : "participa"
+    HOUSEHOLD ||--o{ HOUSEHOLD_MEMBERSHIP : "tem"
+    HOUSEHOLD ||--o{ CATEGORY : "escopo"
+    HOUSEHOLD ||--o{ TRANSACTION : "escopo"
     CATEGORY ||--o{ TRANSACTION : "categoriza"
 
     USER {
@@ -344,9 +380,24 @@ erDiagram
         datetime updated_at
     }
 
+    HOUSEHOLD {
+        int id PK
+        string name
+        int created_by FK
+        datetime created_at
+    }
+
+    HOUSEHOLD_MEMBERSHIP {
+        int id PK
+        int household_id FK
+        int user_id FK
+        datetime joined_at
+    }
+
     CATEGORY {
         int id PK
         int user_id FK
+        int household_id FK "null = pessoal"
         string name
         string type "income | expense"
         string color "hex, default #3498db"
@@ -358,6 +409,7 @@ erDiagram
     TRANSACTION {
         int id PK
         int user_id FK
+        int household_id FK "null = pessoal"
         int category_id FK "on_delete PROTECT"
         string description
         decimal amount "max_digits 12, decimal_places 2, min 0.01"
@@ -371,14 +423,18 @@ erDiagram
 ```
 
 **Regras de integridade**
-- `Category`: `UniqueConstraint(user, name, type)` → sem categorias duplicadas.
+- `Category`: unicidade por escopo → `unique_personal_category` `(user, name, type)`
+  quando pessoal e `unique_household_category` `(household, name, type)` quando do grupo.
 - `Transaction.category`: `on_delete=PROTECT` → categoria em uso não é excluída.
 - `Transaction.amount`: `MinValueValidator(0.01)`.
-- `Transaction.clean()`: `category.user == transaction.user` e
+- `Transaction.clean()`: coerência categoria/escopo (grupo ou pessoal) e
   `category.type == transaction.type`.
 - `Category.color`: `RegexValidator` de hex (`#rgb` ou `#rrggbb`).
 - `Profile.user`: `OneToOneField` → um perfil por usuário.
 - `Profile.phone`: `RegexValidator` de telefone.
+- `HouseholdMembership`: `UniqueConstraint(household, user)` → uma membership por par.
+- `Category.household` / `Transaction.household`: FK anulável → nulo = pessoal,
+  preenchido = compartilhado no grupo.
 
 ---
 

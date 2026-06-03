@@ -1,19 +1,33 @@
 # Segurança
 
-## Isolamento de dados por usuário
+## Isolamento de dados por escopo
 
-O produto é single-tenant por conta — cada usuário só vê o que é seu. Não há
-sistema de perfis nem matriz de permissões; o filtro por `user` em cada query
-é a única barreira e é **obrigatório**.
+Os dados pessoais continuam privados por conta; além disso há grupos
+(`Household`) compartilhados entre membros. O isolamento agora é por **escopo**,
+não só por `request.user` — e continua sendo a barreira central e
+**obrigatória**.
 
-- Toda query de `Category`/`Transaction` (e de qualquer model com dono)
-  filtra por `request.user` — `.filter(user=request.user)` ou
-  `get_object_or_404(Model, pk=pk, user=request.user)`.
-- Nunca confiar em `pk` vindo da URL sem checar a posse.
-- Permissão de leitura sem esse filtro vaza dados de outros usuários.
+- Toda query de `Category`/`Transaction` passa pelos managers de escopo
+  `Model.objects.in_scope(request.user, household)`, onde `household` vem de
+  `get_active_household(request)`:
+  - escopo pessoal → `filter(user=request.user, household__isnull=True)`;
+  - escopo de grupo → `filter(household=household)`, e o `household` só é
+    resolvido se o usuário for membro (`Household.objects.for_user`).
+- `get_object_or_404(Model.objects.in_scope(request.user, household), pk=pk)`
+  para edição/exclusão — nunca confiar em `pk` da URL sem o filtro de escopo.
+- O acesso a um grupo é sempre validado pela `HouseholdMembership`; trocar o
+  escopo para um grupo do qual não se é membro cai em pessoal.
+- Gestão de membros (`member_add`/`member_remove`) é restrita ao dono do grupo
+  (`Household.created_by`).
+- Sem o filtro de escopo, uma query vaza dados pessoais de outros usuários ou
+  de grupos dos quais o usuário não participa.
 
 ## Autenticação e acesso
 
+- O identificador da conta é o **e-mail**: o `RegistrationForm` grava o e-mail
+  em `email` e também em `username` (em minúsculas), validando unicidade. O
+  login usa o form padrão do Django (campo `username`), que funciona com o
+  e-mail por serem iguais. Não há custom user model nem backend de auth próprio.
 - Toda view de dados leva `@login_required`. `register` é a única view
   pública e isso é uma decisão consciente.
 - `ProfileCompletionMiddleware` redireciona usuário autenticado sem `Profile`

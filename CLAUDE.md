@@ -53,7 +53,7 @@ Ao adicionar ou editar funcionalidades em qualquer app, seguir sempre esta ordem
 
 - **Segredos nunca no código nem no versionamento.** `SECRET_KEY`, credenciais de banco, chaves de API e afins vêm de variáveis de ambiente (`os.environ`). `.env` deve estar no `.gitignore`.
 - **`DEBUG = False` em produção.** `DEBUG = True` expõe stack traces e settings; só em desenvolvimento. `ALLOWED_HOSTS` deve ser restrito em produção.
-- **Isolamento de dados por usuário é obrigatório.** Toda query de `Category`/`Transaction` (e de qualquer model com dono) filtra por `request.user` — `.filter(user=request.user)` ou `get_object_or_404(Model, pk=pk, user=request.user)`. Nunca confiar em `pk` vindo da URL sem checar a posse.
+- **Isolamento de dados por escopo é obrigatório.** Toda query de `Category`/`Transaction` passa pelos managers de escopo — `Model.objects.in_scope(request.user, household)`, com `household = get_active_household(request)` (que valida a membership). No escopo pessoal filtra por `user` + `household IS NULL`; no de grupo, por `household`. Use `get_object_or_404(Model.objects.in_scope(request.user, household), pk=pk)`; nunca confiar em `pk` da URL sem o filtro de escopo.
 - **Toda view de dados leva `@login_required`.** Views públicas são a exceção e devem ser conscientes.
 - **CSRF em todo formulário POST** — `{% csrf_token %}` no template; nunca desabilitar a proteção CSRF.
 - **Ações destrutivas (delete) só via POST**, nunca GET — com tela/etapa de confirmação.
@@ -110,7 +110,7 @@ Ao adicionar ou editar funcionalidades em qualquer app, seguir sempre esta ordem
 
 ## Visão Geral do Projeto
 
-**Finances** é uma aplicação web de finanças pessoais. O usuário registra receitas e despesas, organiza-as em categorias customizáveis e acompanha o resultado do mês em um dashboard. Cada conta enxerga apenas os próprios dados.
+**Finances** é uma aplicação web de finanças pessoais. O usuário registra receitas e despesas, organiza-as em categorias customizáveis e acompanha o resultado do mês em um dashboard. Cada conta tem suas finanças pessoais privadas e pode participar de **grupos** (`Household`) — espaços compartilhados onde os membros lançam e acompanham contas em conjunto (ex.: a conta da casa de um casal). O cadastro e o login são por **e-mail**.
 
 **Stack:**
 - Python 3.14 / Django 6.0.5
@@ -141,10 +141,11 @@ As variáveis sensíveis (`SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS`) ficam num `.en
 emy/
 ├── core/                 # Projeto Django (settings, urls, wsgi/asgi)
 ├── finances/             # App de domínio
-│   ├── models.py         # Category, Transaction, Profile, TransactionType, PaymentMethod
-│   ├── forms.py          # CategoryForm, TransactionForm, ProfileForm
-│   ├── views.py          # register, profile_edit, dashboard, CRUD de transações e categorias
+│   ├── models.py         # Category, Transaction, Profile, Household, HouseholdMembership, TransactionType, PaymentMethod
+│   ├── forms.py          # RegistrationForm, CategoryForm, TransactionForm, ProfileForm, HouseholdForm, MemberAddForm
+│   ├── views.py          # register, profile_edit, dashboard, CRUD, grupos, escopo
 │   ├── middleware.py     # ProfileCompletionMiddleware
+│   ├── context_processors.py  # scope (active_household + user_households)
 │   ├── admin.py          # CategoryAdmin, TransactionAdmin
 │   ├── urls.py           # rotas do app (app_name = "finances")
 │   ├── migrations/
@@ -200,22 +201,25 @@ Diagramas completos (classes e ER) estão em `PRD.md`, seção 8.2.
 
 Bucket definido pelo usuário para classificar transações.
 
-- `user` FK → `auth.User` (`on_delete=CASCADE`, `related_name="categories"`)
+- `user` FK → `auth.User` (`on_delete=CASCADE`, `related_name="categories"`) — criador
+- `household` FK → `Household` (`null=True, blank=True`, `on_delete=CASCADE`, `related_name="categories"`) — nulo = pessoal; preenchido = do grupo
 - `name` CharField(80)
 - `type` CharField(10) — choices de `TransactionType`
 - `color` CharField(7) — hex, default `#3498db`, validado por `RegexValidator` (`#rgb` ou `#rrggbb`)
 - `icon` CharField(50) — opcional (`blank=True`)
 - `is_active` Boolean — default `True`
 - `created_at` DateTimeField — `auto_now_add`
-- `Meta`: `ordering = ["name"]`, `verbose_name_plural = "categories"`, `UniqueConstraint(user, name, type)` (`unique_category_per_user`)
+- `Meta`: `ordering = ["name"]`, `verbose_name_plural = "categories"`, e duas `UniqueConstraint` condicionais: `unique_personal_category` `(user, name, type)` quando `household IS NULL` e `unique_household_category` `(household, name, type)` quando `household IS NOT NULL`
+- Manager `CategoryQuerySet.in_scope(user, household)`
 - `clean()` — faz trim do nome e rejeita nome vazio
 - `__str__` — `"{name} ({type})"`
 
 ### Transaction
 
-Lançamento individual de receita ou despesa, pertencente a um usuário.
+Lançamento individual de receita ou despesa — pessoal ou compartilhado em grupo.
 
-- `user` FK → `auth.User` (`on_delete=CASCADE`, `related_name="transactions"`)
+- `user` FK → `auth.User` (`on_delete=CASCADE`, `related_name="transactions"`) — quem lançou
+- `household` FK → `Household` (`null=True, blank=True`, `on_delete=CASCADE`, `related_name="transactions"`) — nulo = pessoal; preenchido = do grupo
 - `category` FK → `Category` (`on_delete=PROTECT`, `related_name="transactions"`)
 - `description` CharField(200)
 - `amount` DecimalField(`max_digits=12`, `decimal_places=2`) — `MinValueValidator(0.01)`
@@ -226,10 +230,11 @@ Lançamento individual de receita ou despesa, pertencente a um usuário.
 - `created_at` DateTimeField — `auto_now_add`
 - `updated_at` DateTimeField — `auto_now`
 - `Meta`: `ordering = ["-date", "-created_at"]`
+- Manager `TransactionQuerySet.in_scope(user, household)`
 - `signed_amount` @property — valor com sinal: negativo para despesa, positivo para receita
 - `clean()`:
   - faz trim da descrição
-  - valida que `category.user == transaction.user`
+  - valida a categoria por escopo: com `household`, a categoria deve ser do mesmo grupo; sem, deve ser pessoal e do mesmo `user`
   - valida que `category.type == transaction.type`
 - `__str__` — `"{description} - {amount}"`
 
@@ -246,24 +251,48 @@ Dados pessoais extras de um usuário, preenchidos logo após o cadastro.
 
 O `Profile` só existe quando preenchido por completo (`birth_date` e `phone` são obrigatórios). O `ProfileCompletionMiddleware` usa a ausência do `Profile` para forçar o preenchimento.
 
+### Household
+
+Espaço compartilhado (UI: "grupo") onde vários usuários acompanham finanças em conjunto.
+
+- `name` CharField(80)
+- `created_by` FK → `auth.User` (`on_delete=CASCADE`, `related_name="created_households"`) — dono
+- `created_at` DateTimeField — `auto_now_add`
+- `Meta`: `ordering = ["name"]`
+- Manager `HouseholdManager.for_user(user)` — grupos dos quais o usuário é membro
+- `clean()` — trim do nome; `__str__` — `name`
+
+### HouseholdMembership
+
+Liga um usuário a um grupo (o dono também tem membership, criada junto com o grupo).
+
+- `household` FK → `Household` (`on_delete=CASCADE`, `related_name="memberships"`)
+- `user` FK → `auth.User` (`on_delete=CASCADE`, `related_name="household_memberships"`)
+- `joined_at` DateTimeField — `auto_now_add`
+- `Meta`: `UniqueConstraint(household, user)` (`unique_household_member`)
+
 ### Regras de integridade
 
-- `Category`: `UniqueConstraint(user, name, type)` — sem categorias duplicadas por usuário.
+- `Category`: unicidade por escopo — `unique_personal_category` `(user, name, type)` (pessoal) e `unique_household_category` `(household, name, type)` (grupo).
 - `Transaction.category`: `on_delete=PROTECT` — categoria com transações vinculadas não pode ser excluída pelo ORM; a view `category_delete` checa antes e exibe mensagem de erro em vez de quebrar.
 - `Transaction.amount`: `MinValueValidator(0.01)` — valor sempre maior que zero.
-- `Transaction.clean()`: coerência usuário/categoria e tipo categoria/transação.
+- `Transaction.clean()`: coerência categoria/escopo e tipo categoria/transação.
 - `Profile.user`: `OneToOneField` — um perfil por usuário.
+- `HouseholdMembership`: `UniqueConstraint(household, user)` — uma membership por par.
 
 ---
 
 ## Forms
 
-- **`CategoryForm`** — `ModelForm` de `Category`, campos `name`, `type`, `color`, `icon`, `is_active`. Widget `type=color` para `color`. O `user` é atribuído na view (`commit=False`), não pelo form.
-- **`TransactionForm`** — `ModelForm` de `Transaction`, campos `description`, `amount`, `date`, `type`, `category`, `payment_method`, `notes`. O `__init__` recebe `user=` por kwarg e:
-  - filtra o queryset de `category` para mostrar apenas categorias **ativas do próprio usuário**;
-  - em `clean()`, atribui `self.instance.user` antes de o `Model.clean()` rodar as validações cruzadas.
+- **`RegistrationForm`** — herda de `UserCreationForm`; campo `email` (obrigatório, único — checado contra `email`/`username`). No `save()` grava o e-mail (em minúsculas) tanto em `user.email` quanto em `user.username`. É o cadastro por e-mail.
+- **`CategoryForm`** — `ModelForm` de `Category`, campos `name`, `type`, `color`, `icon`, `is_active`. Widget `type=color` para `color`. O `user` e o `household` são atribuídos na view (`commit=False`), não pelo form.
+- **`TransactionForm`** — `ModelForm` de `Transaction`, campos `description`, `amount`, `date`, `type`, `category`, `payment_method`, `notes`. O `__init__` recebe `user=` e `household=` por kwarg e:
+  - filtra o queryset de `category` para mostrar apenas categorias **ativas do escopo ativo** (`Category.objects.in_scope(user, household)`);
+  - em `clean()`, atribui `self.instance.user` e `self.instance.household` antes de o `Model.clean()` rodar as validações cruzadas.
   - Widgets: `date` (`type=date`), `amount` (`step=0.01`, `min=0.01`), `notes` (textarea).
 - **`ProfileForm`** — `ModelForm` de `Profile`, campos `birth_date` e `phone`, mais os campos declarados `first_name` e `last_name` (que gravam no `User` nativo, não no `Profile`). O `__init__` recebe `user=` por kwarg e pré-popula `first_name`/`last_name` com os valores atuais do `User`. O `save()` grava o `Profile` e o `User` na mesma chamada. Widgets: `birth_date` (`type=date`), `phone` (placeholder).
+- **`HouseholdForm`** — `ModelForm` de `Household`, campo `name`. O `created_by` é atribuído na view.
+- **`MemberAddForm`** — `Form` com campo `email`; valida que existe uma conta com aquele e-mail (busca por `email`/`username`) e expõe o usuário encontrado em `self.user`.
 
 ---
 
@@ -273,19 +302,25 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a �
 
 | View | Rota (name) | Função |
 |---|---|---|
-| `register` | `register` | Cadastro via `UserCreationForm`; login automático; redireciona para `profile_edit` após o cadastro e usuário já autenticado para o dashboard. |
+| `register` | `register` | Cadastro via `RegistrationForm` (e-mail); login automático; redireciona para `profile_edit`. |
 | `profile_edit` | `finances:profile_edit` | Cria/edita o `Profile` do usuário pelo `ProfileForm`. É a tela que o `register` abre logo após o cadastro. |
-| `dashboard` | `finances:dashboard` | Resumo do mês corrente (receita, despesa, saldo via `Sum`) + 10 transações mais recentes (`select_related("category")`). |
-| `transaction_list` | `finances:transaction_list` | Lista as transações do usuário; filtro opcional por tipo via querystring `?type=income\|expense`. |
-| `transaction_create` | `finances:transaction_create` | Cria transação pelo `TransactionForm`. |
-| `transaction_update` | `finances:transaction_update` | Edita transação; `get_object_or_404(..., user=request.user)`. |
+| `scope_switch` | `finances:scope_switch` | Troca o escopo ativo (pessoal ou grupo) na sessão. |
+| `dashboard` | `finances:dashboard` | Resumo do mês + 10 recentes, no escopo ativo (`in_scope`). |
+| `transaction_list` | `finances:transaction_list` | Lista as transações do escopo ativo; filtro por tipo via `?type=income\|expense`. |
+| `transaction_create` | `finances:transaction_create` | Cria transação no escopo ativo. |
+| `transaction_update` | `finances:transaction_update` | Edita transação dentro do escopo (`get_object_or_404(...in_scope...)`). |
 | `transaction_delete` | `finances:transaction_delete` | Exclui transação após confirmação via POST. |
-| `category_list` | `finances:category_list` | Lista as categorias do usuário. |
-| `category_create` | `finances:category_create` | Cria categoria; `user` atribuído na view. |
-| `category_update` | `finances:category_update` | Edita categoria; restrita ao dono. |
+| `category_list` | `finances:category_list` | Lista as categorias do escopo ativo. |
+| `category_create` | `finances:category_create` | Cria categoria; `user` e `household` atribuídos na view. |
+| `category_update` | `finances:category_update` | Edita categoria dentro do escopo. |
 | `category_delete` | `finances:category_delete` | Exclui categoria; bloqueia se houver transações vinculadas (`PROTECT`). |
+| `household_list` | `finances:household_list` | Lista os grupos do usuário. |
+| `household_create` | `finances:household_create` | Cria grupo + membership do dono (atômico). |
+| `household_detail` | `finances:household_detail` | Membros do grupo; o dono adiciona/remove. |
+| `member_add` | `finances:member_add` | Adiciona membro por e-mail (só o dono). |
+| `member_remove` | `finances:member_remove` | Remove membro (só o dono; nunca o dono). |
 
-**Padrão obrigatório de isolamento por usuário:** toda query de leitura/escrita de `Category` e `Transaction` deve filtrar por `request.user` (`.filter(user=request.user)` ou `get_object_or_404(Model, pk=pk, user=request.user)`). Permissão de leitura sem esse filtro vaza dados de outros usuários.
+**Padrão obrigatório de isolamento por escopo:** toda query de leitura/escrita de `Category` e `Transaction` passa pelos managers `Model.objects.in_scope(request.user, household)`, com `household = get_active_household(request)`. No escopo pessoal filtra por `user` + `household IS NULL`; no de grupo, por `household` (com a membership já validada). Sem esse filtro, vazam dados pessoais de outros usuários ou de grupos dos quais não se é membro.
 
 Feedback de sucesso/erro é dado via `django.contrib.messages` após cada ação.
 
@@ -302,6 +337,7 @@ Feedback de sucesso/erro é dado via `django.contrib.messages` após cada ação
 **`finances/urls.py`** (`app_name = "finances"`):
 - `""` → `dashboard`
 - `profile/` → `profile_edit`
+- `scope/switch/` → `scope_switch`
 - `transactions/` → `transaction_list`
 - `transactions/new/` → `transaction_create`
 - `transactions/<int:pk>/edit/` → `transaction_update`
@@ -310,6 +346,11 @@ Feedback de sucesso/erro é dado via `django.contrib.messages` após cada ação
 - `categories/new/` → `category_create`
 - `categories/<int:pk>/edit/` → `category_update`
 - `categories/<int:pk>/delete/` → `category_delete`
+- `groups/` → `household_list`
+- `groups/new/` → `household_create`
+- `groups/<int:pk>/` → `household_detail`
+- `groups/<int:pk>/members/add/` → `member_add`
+- `groups/<int:pk>/members/<int:user_id>/remove/` → `member_remove`
 
 ---
 
@@ -319,7 +360,11 @@ Feedback de sucesso/erro é dado via `django.contrib.messages` após cada ação
 
 Todos os templates abaixo já estão na identidade visual Emy/Petal (ver seção Frontend / TailwindCSS).
 
-- `base.html` — layout base: header (logo Emy + nome do usuário com link para o perfil + Sair), nav inferior flutuante (Início / Lançamentos / Categorias / botão `+`, com item ativo via `request.resolver_match`), bloco de mensagens. O nome exibido é `first_name` (com fallback para `username`). Estilização 100% Tailwind, sem `<style>` inline.
+- `base.html` — layout base: header (logo Emy + pílula de escopo ativo + nome do usuário com link para o perfil + Sair), nav inferior flutuante (Início / Lançamentos / Categorias / botão `+`, com item ativo via `request.resolver_match`), bloco de mensagens. A pílula central mostra o escopo atual ("Pessoal" ou nome do grupo) e leva ao `scope_switch`. O nome exibido é `first_name` (com fallback para `username`). Estilização 100% Tailwind, sem `<style>` inline.
+- `finances/scope_switch.html` — escolha do escopo ativo (Pessoal ou um grupo) + link "Gerenciar grupos".
+- `finances/household_list.html` — lista de grupos + "Novo grupo".
+- `finances/household_form.html` — criação de grupo (nome).
+- `finances/household_detail.html` — membros do grupo; o dono adiciona membro por e-mail e remove membros.
 - `finances/dashboard.html` — saudação (usa `first_name`), card de saldo com gradiente (saldo/entrou/saiu) + lista de lançamentos recentes.
 - `finances/transaction_list.html` — pills de filtro por tipo + lista de transações em cards arredondados.
 - `finances/transaction_form.html` — card dividido: toggle Despesa/Receita, valor grande, pills de categoria, data, método de pagamento e observações.
@@ -327,8 +372,8 @@ Todos os templates abaixo já estão na identidade visual Emy/Petal (ver seção
 - `finances/category_form.html` — formulário de criação/edição de categoria (toggle de tipo, cor, ícone, ativo).
 - `finances/profile_form.html` — formulário de perfil (nome, sobrenome, data de nascimento, telefone). Usado tanto no preenchimento pós-cadastro quanto na edição.
 - `finances/confirm_delete.html` — confirmação de exclusão (reusado por transação e categoria; título derivado de `object._meta.model_name`).
-- `registration/login.html` — tela de login (card dividido com painel de gradiente).
-- `registration/register.html` — tela de cadastro (mesmo padrão do login).
+- `registration/login.html` — tela de login por e-mail (card dividido; campo mantém `name="username"`, exibido como "E-mail").
+- `registration/register.html` — tela de cadastro por e-mail (mesmo padrão do login; campo `email`).
 
 **Botão "Voltar" padronizado:** os forms (`transaction_form`, `category_form`, `profile_form`) têm um botão circular `←` no topo (fora do `<form>`, `type="button"`, `onclick="history.back()"`) que volta para a página anterior. Nos forms com título fora do `<form>` ele fica ao lado do título; no `transaction_form` (título dentro do card) fica acima do form.
 
@@ -337,16 +382,18 @@ Todos os templates abaixo já estão na identidade visual Emy/Petal (ver seção
 ## Admin
 
 `finances/admin.py` registra:
-- **`CategoryAdmin`** — `list_display`, `list_filter` (tipo, ativo, data), `search_fields`, `autocomplete_fields = ("user",)`.
-- **`TransactionAdmin`** — `list_display`, `list_filter` (tipo, método, data, categoria), `search_fields`, `autocomplete_fields = ("user", "category")`, `date_hierarchy = "date"`.
+- **`CategoryAdmin`** — `list_display`, `list_filter` (tipo, ativo, grupo, data), `search_fields`, `autocomplete_fields = ("user", "household")`.
+- **`TransactionAdmin`** — `list_display`, `list_filter` (tipo, método, data, categoria, grupo), `search_fields`, `autocomplete_fields = ("user", "household", "category")`, `date_hierarchy = "date"`.
+- **`HouseholdAdmin`** — com inline de membros (`HouseholdMembership`); e **`HouseholdMembershipAdmin`**.
 
 ---
 
 ## Autenticação
 
 - `User` nativo de `django.contrib.auth` — sem custom user model. Dados pessoais extras vivem no model `Profile` (OneToOne).
+- **Identificador é o e-mail**: o `RegistrationForm` grava o e-mail em `email` e também em `username` (minúsculas). O login usa o form padrão do Django (campo `username`), que funciona com o e-mail por serem iguais — sem backend de auth próprio.
 - Login/logout/troca de senha via `django.contrib.auth.urls`.
-- Cadastro via `UserCreationForm` na view `register`, com login automático após sucesso.
+- Cadastro via `RegistrationForm` na view `register`, com login automático após sucesso.
 - Após o cadastro, o usuário é redirecionado para `profile_edit` para completar o perfil (nome, data de nascimento, telefone).
 - `ProfileCompletionMiddleware` força o preenchimento: usuário autenticado sem `Profile` é redirecionado para `profile_edit` em qualquer rota (exceto `/admin/`, a própria tela de perfil e o `logout`).
 - Senhas validadas por `AUTH_PASSWORD_VALIDATORS` (configuração padrão do Django).
@@ -355,7 +402,7 @@ Todos os templates abaixo já estão na identidade visual Emy/Petal (ver seção
   - `LOGIN_URL = 'login'`
   - `LOGIN_REDIRECT_URL = 'finances:dashboard'`
   - `LOGOUT_REDIRECT_URL = 'login'`
-- Não há sistema de permissões granulares — o isolamento é feito por `request.user` em cada view. O `Profile` guarda dados pessoais, não papéis nem permissões.
+- Não há sistema de permissões granulares — o isolamento é feito por escopo (pessoal x grupo) em cada view, via `in_scope`. A única regra de papel é o dono do grupo (`Household.created_by`) gerenciar membros.
 
 ---
 
@@ -365,6 +412,7 @@ Todos os templates abaixo já estão na identidade visual Emy/Petal (ver seção
 - `MIDDLEWARE` inclui `finances.middleware.ProfileCompletionMiddleware` (logo após o `AuthenticationMiddleware`).
 - `TAILWIND_APP_NAME = 'theme'`.
 - `DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'`.
+- `TEMPLATES['OPTIONS']['context_processors']` inclui `finances.context_processors.scope` (expõe `active_household` e `user_households`).
 - `SECRET_KEY`, `DEBUG` e `ALLOWED_HOSTS` vêm de variáveis de ambiente, carregadas de um `.env` na raiz pelo `python-dotenv` (`load_dotenv()` no topo do `settings.py`). `SECRET_KEY` é obrigatória (`os.environ['SECRET_KEY']`); `DEBUG` tem default seguro `False`. O `.env` está no `.gitignore`; o `.env.example` é o modelo versionado.
 - Banco: SQLite em `BASE_DIR / 'db.sqlite3'`.
 
@@ -381,7 +429,10 @@ Todos os templates abaixo já estão na identidade visual Emy/Petal (ver seção
 - **`signed_amount` como @property**: o valor com sinal (negativo para despesa) é calculado na leitura, não persistido — `amount` guarda sempre o valor absoluto e `type` define o sinal. Evita inconsistência entre os dois campos.
 - **`UniqueConstraint(user, name, type)` em `Category`**: o mesmo nome pode existir como receita e como despesa (ex.: "Bônus" receita e "Bônus" despesa), e usuários diferentes podem ter categorias homônimas — a unicidade é por trio, não por nome global.
 - **`TransactionForm` recebe `user` por kwarg**: o form precisa do usuário para (a) filtrar o seletor de categorias e (b) preencher `instance.user` antes do `Model.clean()`. Passar via `__init__` mantém o form desacoplado do `request`.
-- **Isolamento por `request.user` em vez de sistema de permissões**: o produto é single-tenant por conta — cada usuário só vê o que é seu. Não há perfis nem matriz de permissões; o filtro por `user` em cada query é a única barreira e é obrigatório.
+- **Isolamento por escopo em vez de sistema de permissões**: cada usuário tem finanças pessoais privadas e pode participar de grupos compartilhados. Não há matriz de permissões; o filtro por escopo (`in_scope`) em cada query é a barreira e é obrigatório. A única regra de papel é o dono do grupo gerenciar membros.
+- **Escopo pessoal x grupo via `household` opcional (não tabelas separadas)**: `Category`/`Transaction` ganharam um FK `household` anulável — nulo = pessoal, preenchido = do grupo. O escopo ativo vive na sessão (`active_household_id`), resolvido por `get_active_household(request)` (que valida a membership) e aplicado pelos managers `in_scope(user, household)` / `Household.objects.for_user(user)`. Um context processor expõe o escopo aos templates. Mais simples que duplicar models e mantém o ORM DRY.
+- **Login por e-mail sem custom user model**: para padronizar a identidade por e-mail (e permitir adicionar membros por e-mail) sem o risco de trocar `AUTH_USER_MODEL`, o `RegistrationForm` grava o e-mail também no `username`. O login padrão do Django (por `username`) passa a funcionar com o e-mail por serem iguais — sem backend de auth próprio.
+- **Gestão de membros restrita ao dono**: só `Household.created_by` adiciona/remove membros; o dono não pode ser removido. `created_by` em `CASCADE` é escolha de MVP (apagar a conta do dono apaga o grupo) — sem tela de exclusão de grupo/conta ainda.
 - **TailwindCSS no modo standalone (sem Node.js)**: optou-se por `django-tailwind` 4.x + `pytailwindcss` em vez do modo "full" que exige Node/npm. Mantém o ambiente de desenvolvimento 100% Python — só `pip install` e os comandos `manage.py tailwind`. O binário do Tailwind CLI é baixado pelo `pytailwindcss`.
 - **Identidade visual "Petal" (TailwindCSS)**: a UI foi migrada da v1 (CSS inline) para a identidade Emy, variação **"Petal"** — off-white rosado, soft/feminino com glow, cards bem arredondados, gradiente rosa→roxo, nav inferior flutuante. Escolhida entre três explorações de design (Soft Bloom / Petal / Aurora). Os tokens (cores `emy-*`, fontes) vivem no bloco `@theme` de `theme/static_src/src/styles.css`; o `<style>` inline do `base.html` foi removido. A migração cobriu só as telas com model atual (`Category`/`Transaction`) — Cartões, Metas, Insights, Transferência e Recorrência aparecem no mock mas não têm model e ficaram fora.
-- **Inputs renderizados campo a campo nos templates**: para ter controle total das classes Tailwind sem tocar em `forms.py`/`views.py`, os formulários (`login`, `register`, `transaction_form`, `category_form`, `profile_form`) renderizam cada `<input>`/`<select>` manualmente com o `name=` correto, repondo o valor via `form.<campo>.value` e os erros via `form.<campo>.errors`. `type` e `category` viram radios estilizados (toggle/pills).
+- **Inputs renderizados campo a campo nos templates**: para ter controle total das classes Tailwind sem tocar em `forms.py`/`views.py`, os formulários (`login`, `register`, `transaction_form`, `category_form`, `profile_form`, telas de grupo) renderizam cada `<input>`/`<select>` manualmente com o `name=` correto, repondo o valor via `form.<campo>.value` e os erros via `form.<campo>.errors`. `type` e `category` viram radios estilizados (toggle/pills).

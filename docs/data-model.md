@@ -16,7 +16,8 @@ Bucket definido pelo usuário para classificar transações.
 
 | Campo | Tipo | Observação |
 |---|---|---|
-| `user` | FK → `auth.User` | `on_delete=CASCADE`, `related_name="categories"` |
+| `user` | FK → `auth.User` | `on_delete=CASCADE`, `related_name="categories"` (criador) |
+| `household` | FK → `Household` | `null=True, blank=True`, `on_delete=CASCADE`, `related_name="categories"` — nulo = categoria pessoal; preenchido = categoria do grupo |
 | `name` | CharField(80) | |
 | `type` | CharField(10) | choices de `TransactionType` |
 | `color` | CharField(7) | hex, default `#3498db`, validado por `RegexValidator` (`#rgb` ou `#rrggbb`) |
@@ -24,8 +25,12 @@ Bucket definido pelo usuário para classificar transações.
 | `is_active` | Boolean | default `True` |
 | `created_at` | DateTimeField | `auto_now_add` |
 
-- `Meta`: `ordering = ["name"]`, `verbose_name_plural = "categories"`,
-  `UniqueConstraint(user, name, type)` (`unique_category_per_user`).
+- `Meta`: `ordering = ["name"]`, `verbose_name_plural = "categories"`, duas
+  `UniqueConstraint` condicionais: `unique_personal_category` em
+  `(user, name, type)` quando `household IS NULL`, e `unique_household_category`
+  em `(household, name, type)` quando `household IS NOT NULL`.
+- Manager `CategoryQuerySet.in_scope(user, household)` — categorias do escopo
+  ativo (pessoal ou grupo).
 - `clean()` — faz trim do nome e rejeita nome vazio.
 - `__str__` — `"{name} ({type})"`.
 
@@ -35,7 +40,8 @@ Lançamento individual de receita ou despesa, pertencente a um usuário.
 
 | Campo | Tipo | Observação |
 |---|---|---|
-| `user` | FK → `auth.User` | `on_delete=CASCADE`, `related_name="transactions"` |
+| `user` | FK → `auth.User` | `on_delete=CASCADE`, `related_name="transactions"` (quem lançou) |
+| `household` | FK → `Household` | `null=True, blank=True`, `on_delete=CASCADE`, `related_name="transactions"` — nulo = lançamento pessoal; preenchido = lançamento do grupo |
 | `category` | FK → `Category` | `on_delete=PROTECT`, `related_name="transactions"` |
 | `description` | CharField(200) | |
 | `amount` | DecimalField(12, 2) | `MinValueValidator(0.01)` |
@@ -47,11 +53,14 @@ Lançamento individual de receita ou despesa, pertencente a um usuário.
 | `updated_at` | DateTimeField | `auto_now` |
 
 - `Meta`: `ordering = ["-date", "-created_at"]`.
+- Manager `TransactionQuerySet.in_scope(user, household)` — lançamentos do
+  escopo ativo (pessoal ou grupo).
 - `signed_amount` @property — valor com sinal: negativo para despesa,
   positivo para receita. Calculado na leitura, não persistido.
 - `clean()`:
   - faz trim da descrição;
-  - valida que `category.user == transaction.user`;
+  - valida a categoria por escopo: se há `household`, a categoria deve ser do
+    mesmo grupo; se é pessoal, a categoria deve ser pessoal e do mesmo `user`;
   - valida que `category.type == transaction.type`.
 - `__str__` — `"{description} - {amount}"`.
 
@@ -74,19 +83,52 @@ Dados pessoais extras de um usuário, preenchidos logo após o cadastro.
   preenchido por completo. O `ProfileCompletionMiddleware` usa a ausência do
   `Profile` para forçar o preenchimento após o cadastro.
 
+## Household
+
+Espaço compartilhado (UI: "grupo") onde vários usuários acompanham finanças em
+conjunto. Ex.: a conta da casa de um casal.
+
+| Campo | Tipo | Observação |
+|---|---|---|
+| `name` | CharField(80) | |
+| `created_by` | FK → `auth.User` | `on_delete=CASCADE`, `related_name="created_households"` (dono do grupo) |
+| `created_at` | DateTimeField | `auto_now_add` |
+
+- `Meta`: `ordering = ["name"]`.
+- Manager `HouseholdManager.for_user(user)` — grupos dos quais o usuário é
+  membro (`memberships__user=user`).
+- `clean()` — faz trim do nome e rejeita nome vazio.
+- `__str__` — `name`.
+
+## HouseholdMembership
+
+Liga um usuário a um grupo. O dono (`Household.created_by`) também tem uma
+membership, criada junto com o grupo.
+
+| Campo | Tipo | Observação |
+|---|---|---|
+| `household` | FK → `Household` | `on_delete=CASCADE`, `related_name="memberships"` |
+| `user` | FK → `auth.User` | `on_delete=CASCADE`, `related_name="household_memberships"` |
+| `joined_at` | DateTimeField | `auto_now_add` |
+
+- `Meta`: `UniqueConstraint(household, user)` (`unique_household_member`).
+
 ## Regras de integridade
 
-- `Category`: `UniqueConstraint(user, name, type)` — sem categorias
-  duplicadas por usuário. O mesmo nome pode existir como receita e como
-  despesa.
+- `Category`: unicidade **por escopo** — `unique_personal_category`
+  `(user, name, type)` quando pessoal e `unique_household_category`
+  `(household, name, type)` quando do grupo. O mesmo nome pode existir como
+  receita e despesa, e em escopos diferentes.
 - `Transaction.category`: `on_delete=PROTECT` — categoria com transações
   vinculadas não pode ser excluída pelo ORM; a view `category_delete` checa
   antes e exibe mensagem de erro em vez de quebrar.
 - `Transaction.amount`: `MinValueValidator(0.01)` — valor sempre maior que zero.
-- `Transaction.clean()`: coerência usuário/categoria e tipo
+- `Transaction.clean()`: coerência categoria/escopo e tipo
   categoria/transação.
 - `Category.color`: `RegexValidator` de hex (`#rgb` ou `#rrggbb`).
 - `Profile.user`: `OneToOneField` — um perfil por usuário.
+- `HouseholdMembership`: `UniqueConstraint(household, user)` — uma membership
+  por par usuário/grupo.
 
 ## Decisões de design
 
@@ -105,7 +147,19 @@ Dados pessoais extras de um usuário, preenchidos logo após o cadastro.
 - **`signed_amount` como @property** — `amount` guarda sempre o valor absoluto
   e `type` define o sinal; o valor com sinal é calculado na leitura, evitando
   inconsistência entre os dois campos.
-- **`UniqueConstraint(user, name, type)`** — a unicidade é por trio, não por
-  nome global: usuários diferentes podem ter categorias homônimas.
+- **`UniqueConstraint` por trio** — a unicidade não é por nome global:
+  usuários diferentes podem ter categorias homônimas.
+- **Escopo pessoal x grupo via `household` opcional** — em vez de tabelas
+  separadas, `Category`/`Transaction` ganharam um FK `household` anulável:
+  nulo = pessoal (privado do `user`), preenchido = do grupo (compartilhado
+  entre os membros). Os managers `in_scope(user, household)` e
+  `Household.objects.for_user(user)` centralizam o filtro de escopo, evitando
+  repetir a regra nas views. O escopo ativo vive na sessão (ver
+  [architecture.md](architecture.md)).
+- **`Household` separado de `User`** — o grupo é uma entidade própria com
+  membros via `HouseholdMembership` (M2M explícita, para guardar `joined_at` e
+  permitir regras de dono). O `created_by` em `CASCADE` é uma escolha de MVP:
+  se o dono apagar a conta, o grupo some — aceitável enquanto não há tela de
+  exclusão de grupo/conta.
 </content>
 </invoke>

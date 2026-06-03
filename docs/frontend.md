@@ -52,7 +52,11 @@ pelo app `finances`, que tem o seu próprio `base.html`.
 
 | Template | Conteúdo |
 |---|---|
-| `base.html` | Header (logo Emy + nome do usuário com link para o perfil + Sair), nav inferior flutuante, bloco de mensagens. O nome exibido é `first_name` (fallback para `username`). Estilização 100% Tailwind. |
+| `base.html` | Header (logo Emy + pílula de escopo ativo + nome do usuário com link para o perfil + Sair), nav inferior flutuante, bloco de mensagens. A pílula central mostra o escopo atual ("Pessoal" ou o nome do grupo) e leva à troca de escopo. O nome exibido é `first_name` (fallback para `username`). Estilização 100% Tailwind. |
+| `finances/scope_switch.html` | Escolha do escopo ativo (Pessoal ou um grupo) + link "Gerenciar grupos". |
+| `finances/household_list.html` | Lista dos grupos do usuário + botão "Novo grupo". |
+| `finances/household_form.html` | Criação de grupo (nome). |
+| `finances/household_detail.html` | Membros do grupo; o dono adiciona membro por e-mail e remove membros. |
 | `finances/dashboard.html` | Saudação (usa `first_name`), card de saldo com gradiente (saldo/entrou/saiu) + lista de lançamentos recentes. |
 | `finances/transaction_list.html` | Pills de filtro por tipo + lista de transações em cards arredondados. |
 | `finances/transaction_form.html` | Card dividido: toggle Despesa/Receita, valor grande, pills de categoria, data, método, observações. |
@@ -60,8 +64,8 @@ pelo app `finances`, que tem o seu próprio `base.html`.
 | `finances/category_form.html` | Formulário de categoria (toggle de tipo, cor, ícone, ativo). |
 | `finances/profile_form.html` | Formulário de perfil (nome, sobrenome, data de nascimento, telefone). Usado no preenchimento pós-cadastro e na edição. |
 | `finances/confirm_delete.html` | Confirmação de exclusão (reusado por transação e categoria). |
-| `registration/login.html` | Tela de login (card dividido com painel de gradiente). |
-| `registration/register.html` | Tela de cadastro (mesmo padrão do login). |
+| `registration/login.html` | Tela de login por e-mail (card dividido com painel de gradiente; o campo mantém `name="username"`, exibido como "E-mail"). |
+| `registration/register.html` | Tela de cadastro por e-mail (mesmo padrão do login; campo `email`). |
 
 ### Renderização de formulários
 
@@ -92,7 +96,10 @@ Cartões/faturas, Metas, Insights, Transferência, Recorrência, busca global,
 "remember-me" e recuperação de senha — **não** foram incluídas.
 
 A tela de perfil (`profile_form.html`) foi adicionada depois, já na
-identidade Petal, junto com o model `Profile`.
+identidade Petal, junto com o model `Profile`. As telas de grupo
+(`scope_switch`, `household_list`, `household_form`, `household_detail`) e a
+pílula de escopo no `base.html` vieram com a feature de compartilhamento, na
+mesma identidade. O cadastro/login passaram a usar e-mail.
 
 Pendências de UI conhecidas:
 

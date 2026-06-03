@@ -18,13 +18,14 @@
 emy/
 ├── core/                 # Projeto Django (settings, urls, wsgi/asgi)
 ├── finances/             # App de domínio
-│   ├── models.py         # Category, Transaction, Profile, TransactionType, PaymentMethod
-│   ├── forms.py          # CategoryForm, TransactionForm, ProfileForm
-│   ├── views.py          # register, profile_edit, dashboard, CRUD de transações e categorias
+│   ├── models.py         # Category, Transaction, Profile, Household, HouseholdMembership, enums
+│   ├── forms.py          # RegistrationForm, CategoryForm, TransactionForm, ProfileForm, HouseholdForm, MemberAddForm
+│   ├── views.py          # register, profile_edit, dashboard, CRUD, grupos e escopo
 │   ├── middleware.py     # ProfileCompletionMiddleware
-│   ├── admin.py          # CategoryAdmin, TransactionAdmin
+│   ├── context_processors.py  # scope: active_household + user_households nos templates
+│   ├── admin.py          # CategoryAdmin, TransactionAdmin, HouseholdAdmin, HouseholdMembershipAdmin
 │   ├── urls.py           # rotas do app (app_name = "finances")
-│   ├── tests.py          # testes do app
+│   ├── tests.py          # testes do app (pytest)
 │   ├── migrations/
 │   └── templates/        # base.html, finances/, registration/
 ├── theme/                # App do django-tailwind (fonte + build do CSS)
@@ -45,7 +46,22 @@ emy/
 | `theme` | App gerado pelo `django-tailwind` — guarda a fonte e o build do CSS. Sem models nem views próprios. |
 
 A autenticação usa o `User` nativo de `django.contrib.auth` — não há app
-`accounts` nem custom user model.
+`accounts` nem custom user model. O identificador é o **e-mail**, gravado
+também como `username` (ver [security.md](security.md)).
+
+## Escopo (pessoal x grupo)
+
+As telas de dados operam num **escopo ativo**: pessoal (`household IS NULL`) ou
+um grupo (`Household`) do qual o usuário é membro. O escopo ativo fica na
+sessão (`request.session["active_household_id"]`).
+
+- `get_active_household(request)` (em `views.py`) resolve o escopo, validando a
+  membership; cai em pessoal se o id for inválido.
+- Os managers `Transaction/Category.objects.in_scope(user, household)` e
+  `Household.objects.for_user(user)` centralizam o filtro.
+- O context processor `finances.context_processors.scope` expõe
+  `active_household` e `user_households` a todos os templates (pílula de escopo
+  no `base.html`).
 
 ## Views e rotas
 
@@ -54,17 +70,23 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a
 
 | View | Rota (name) | Função |
 |---|---|---|
-| `register` | `register` | Cadastro via `UserCreationForm`; login automático; redireciona para `profile_edit` após o cadastro e usuário já autenticado para o dashboard. |
+| `register` | `register` | Cadastro via `RegistrationForm` (e-mail); login automático; redireciona para `profile_edit`. |
 | `profile_edit` | `finances:profile_edit` | Cria/edita o `Profile` do usuário; é a tela aberta logo após o cadastro. |
-| `dashboard` | `finances:dashboard` | Resumo do mês corrente (receita, despesa, saldo) + 10 transações mais recentes. |
-| `transaction_list` | `finances:transaction_list` | Lista as transações do usuário; filtro opcional por tipo via `?type=income\|expense`. |
-| `transaction_create` | `finances:transaction_create` | Cria transação pelo `TransactionForm`. |
-| `transaction_update` | `finances:transaction_update` | Edita transação restrita ao dono. |
+| `scope_switch` | `finances:scope_switch` | Troca o escopo ativo (pessoal ou grupo) na sessão. |
+| `dashboard` | `finances:dashboard` | Resumo do mês + 10 recentes, no escopo ativo. |
+| `transaction_list` | `finances:transaction_list` | Lista transações do escopo ativo; filtro por tipo via `?type=income\|expense`. |
+| `transaction_create` | `finances:transaction_create` | Cria transação no escopo ativo. |
+| `transaction_update` | `finances:transaction_update` | Edita transação dentro do escopo. |
 | `transaction_delete` | `finances:transaction_delete` | Exclui transação após confirmação via POST. |
-| `category_list` | `finances:category_list` | Lista as categorias do usuário. |
-| `category_create` | `finances:category_create` | Cria categoria; `user` atribuído na view. |
-| `category_update` | `finances:category_update` | Edita categoria restrita ao dono. |
+| `category_list` | `finances:category_list` | Lista categorias do escopo ativo. |
+| `category_create` | `finances:category_create` | Cria categoria; `user` e `household` atribuídos na view. |
+| `category_update` | `finances:category_update` | Edita categoria dentro do escopo. |
 | `category_delete` | `finances:category_delete` | Exclui categoria; bloqueia se houver transações vinculadas. |
+| `household_list` | `finances:household_list` | Lista os grupos do usuário. |
+| `household_create` | `finances:household_create` | Cria grupo + membership do dono (atômico). |
+| `household_detail` | `finances:household_detail` | Membros do grupo; o dono adiciona/remove. |
+| `member_add` | `finances:member_add` | Adiciona membro por e-mail (só o dono). |
+| `member_remove` | `finances:member_remove` | Remove membro (só o dono; nunca o dono). |
 
 ### URLs
 
@@ -77,6 +99,7 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a
 `finances/urls.py` (`app_name = "finances"`):
 - `""` → `dashboard`
 - `profile/` → `profile_edit`
+- `scope/switch/` → `scope_switch`
 - `transactions/` → `transaction_list`
 - `transactions/new/` → `transaction_create`
 - `transactions/<int:pk>/edit/` → `transaction_update`
@@ -85,15 +108,23 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a
 - `categories/new/` → `category_create`
 - `categories/<int:pk>/edit/` → `category_update`
 - `categories/<int:pk>/delete/` → `category_delete`
+- `groups/` → `household_list`
+- `groups/new/` → `household_create`
+- `groups/<int:pk>/` → `household_detail`
+- `groups/<int:pk>/members/add/` → `member_add`
+- `groups/<int:pk>/members/<int:user_id>/remove/` → `member_remove`
 
 ## Admin
 
 `finances/admin.py` registra:
-- `CategoryAdmin` — `list_display`, `list_filter` (tipo, ativo, data),
-  `search_fields`, `autocomplete_fields = ("user",)`.
+- `CategoryAdmin` — `list_display`, `list_filter` (tipo, ativo, grupo, data),
+  `search_fields`, `autocomplete_fields = ("user", "household")`.
 - `TransactionAdmin` — `list_display`, `list_filter` (tipo, método, data,
-  categoria), `search_fields`, `autocomplete_fields = ("user", "category")`,
+  categoria, grupo), `search_fields`,
+  `autocomplete_fields = ("user", "household", "category")`,
   `date_hierarchy = "date"`.
+- `HouseholdAdmin` — com inline de membros (`HouseholdMembership`).
+- `HouseholdMembershipAdmin`.
 
 ## Settings relevantes (`core/settings.py`)
 
