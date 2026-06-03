@@ -105,7 +105,8 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a
 - Redirecionamentos de autenticação: `LOGIN_URL = 'login'`,
   `LOGIN_REDIRECT_URL = 'finances:dashboard'`, `LOGOUT_REDIRECT_URL = 'login'`.
 - Banco: SQLite em `BASE_DIR / 'db.sqlite3'`.
-- `DEBUG = True` e `SECRET_KEY` hardcoded — pendência de segurança, ver
+- `SECRET_KEY`, `DEBUG` e `ALLOWED_HOSTS` vêm de variáveis de ambiente,
+  carregadas de um `.env` na raiz pelo `python-dotenv` — ver
   [security.md](security.md).
 </content>
 </invoke>

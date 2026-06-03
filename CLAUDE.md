@@ -132,7 +132,9 @@ python manage.py runserver        # inicia o servidor em localhost:8000
 
 Durante o desenvolvimento de UI, manter `python manage.py tailwind start` rodando em outro terminal — recompila o CSS automaticamente a cada alteração de template.
 
-Dependências em `requirements.txt` (Django, asgiref, sqlparse, django-tailwind, pytailwindcss).
+Dependências em `requirements.txt` (Django, asgiref, sqlparse, django-tailwind, pytailwindcss, python-dotenv).
+
+As variáveis sensíveis (`SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS`) ficam num `.env` na raiz (não versionado), carregado pelo `python-dotenv`. Copie o `.env.example` para `.env` e preencha o `SECRET_KEY` antes de rodar.
 
 **Estrutura de pastas:**
 ```
@@ -363,7 +365,7 @@ Todos os templates abaixo já estão na identidade visual Emy/Petal (ver seção
 - `MIDDLEWARE` inclui `finances.middleware.ProfileCompletionMiddleware` (logo após o `AuthenticationMiddleware`).
 - `TAILWIND_APP_NAME = 'theme'`.
 - `DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'`.
-- `DEBUG = True` e `SECRET_KEY` hardcoded — **pendência de segurança**: extrair para variáveis de ambiente antes de qualquer deploy (ver PRD, R06 / Sprint 8).
+- `SECRET_KEY`, `DEBUG` e `ALLOWED_HOSTS` vêm de variáveis de ambiente, carregadas de um `.env` na raiz pelo `python-dotenv` (`load_dotenv()` no topo do `settings.py`). `SECRET_KEY` é obrigatória (`os.environ['SECRET_KEY']`); `DEBUG` tem default seguro `False`. O `.env` está no `.gitignore`; o `.env.example` é o modelo versionado.
 - Banco: SQLite em `BASE_DIR / 'db.sqlite3'`.
 
 ---

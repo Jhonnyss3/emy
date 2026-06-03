@@ -40,19 +40,19 @@ sistema de perfis nem matriz de permissões; o filtro por `user` em cada query
 ## Segredos e configuração
 
 - Segredos nunca no código nem no versionamento. `SECRET_KEY`, credenciais de
-  banco, chaves de API e afins devem vir de variáveis de ambiente
-  (`os.environ`). `.env` está no `.gitignore`.
+  banco, chaves de API e afins vêm de variáveis de ambiente. O `core/settings.py`
+  lê `SECRET_KEY`, `DEBUG` e `ALLOWED_HOSTS` de um `.env` na raiz, carregado pelo
+  `python-dotenv` via `load_dotenv()`. O `.env` está no `.gitignore`; o
+  `.env.example` (sem segredos) serve de modelo e é versionado.
+- `SECRET_KEY` é lida com `os.environ['SECRET_KEY']` — obrigatória, o projeto
+  não sobe sem ela. `DEBUG` vem de `os.environ.get('DEBUG', 'False') == 'True'`
+  (default seguro: `False`). `ALLOWED_HOSTS` é a lista separada por vírgula da
+  variável de mesmo nome.
 - `DEBUG = False` em produção. `ALLOWED_HOSTS` restrito em produção.
 - Não logar dados sensíveis (senhas, tokens, PII desnecessária).
 - Em produção: HTTPS obrigatório e habilitar `SECURE_SSL_REDIRECT`,
   `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, `SECURE_HSTS_SECONDS`.
 - Antes de cada release: rodar `python manage.py check --deploy` e resolver
   os apontamentos.
-
-## Pendência conhecida
-
-Atualmente `core/settings.py` tem `DEBUG = True` e `SECRET_KEY` hardcoded.
-Extrair `SECRET_KEY`, `DEBUG` e `ALLOWED_HOSTS` para variáveis de ambiente é
-pendência de segurança antes de qualquer deploy (ver PRD, risco R06).
 </content>
 </invoke>

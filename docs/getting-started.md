@@ -14,15 +14,36 @@ Listadas em [requirements.txt](../requirements.txt):
 asgiref==3.11.1
 Django==6.0.5
 django-tailwind==4.4.2
+python-dotenv==1.2.2
 pytailwindcss==0.3.0
 sqlparse==0.5.5
 ```
+
+## Variáveis de ambiente
+
+O projeto lê `SECRET_KEY`, `DEBUG` e `ALLOWED_HOSTS` de um arquivo `.env` na
+raiz (carregado pelo `python-dotenv`). O `.env` **não** é versionado; use o
+[.env.example](../.env.example) como modelo.
+
+```bash
+cp .env.example .env              # cria o .env a partir do modelo
+```
+
+Depois, preencha o `SECRET_KEY` no `.env`. Para gerar uma chave nova:
+
+```bash
+python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+```
+
+`SECRET_KEY` é obrigatória — o projeto não sobe sem ela. `DEBUG=True` e
+`ALLOWED_HOSTS` vazio são adequados para desenvolvimento.
 
 ## Passo a passo
 
 ```bash
 source .venv/bin/activate         # ativa o virtualenv
 pip install -r requirements.txt   # instala as dependências
+cp .env.example .env              # cria o .env e preencha o SECRET_KEY
 python manage.py migrate          # aplica as migrations
 python manage.py tailwind build   # compila o CSS (ao menos uma vez)
 python manage.py createsuperuser  # opcional, para acessar /admin/
