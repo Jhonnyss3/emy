@@ -50,6 +50,74 @@ class Profile(models.Model):
         return f"Profile of {self.user.username}"
 
 
+class HouseholdManager(models.Manager):
+    def for_user(self, user):
+        """Households the given user is a member of."""
+        return self.filter(memberships__user=user)
+
+
+class Household(models.Model):
+    """A shared space where several users track finances together."""
+
+    name = models.CharField(max_length=80)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="created_households",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = HouseholdManager()
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+    def clean(self):
+        super().clean()
+        if self.name:
+            self.name = self.name.strip()
+        if not self.name:
+            raise ValidationError({"name": "Name cannot be blank."})
+
+
+class HouseholdMembership(models.Model):
+    """Links a user to a household they belong to."""
+
+    household = models.ForeignKey(
+        Household,
+        on_delete=models.CASCADE,
+        related_name="memberships",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="household_memberships",
+    )
+    joined_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["household", "user"],
+                name="unique_household_member",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} in {self.household.name}"
+
+
+class CategoryQuerySet(models.QuerySet):
+    def in_scope(self, user, household):
+        """Categories visible in the active scope (personal or a group)."""
+        if household is None:
+            return self.filter(user=user, household__isnull=True)
+        return self.filter(household=household)
+
+
 class Category(models.Model):
     """A user-defined bucket that classifies transactions."""
 
@@ -57,6 +125,13 @@ class Category(models.Model):
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="categories",
+    )
+    household = models.ForeignKey(
+        Household,
+        on_delete=models.CASCADE,
+        related_name="categories",
+        null=True,
+        blank=True,
     )
     name = models.CharField(max_length=80)
     type = models.CharField(max_length=10, choices=TransactionType.choices)
@@ -69,14 +144,22 @@ class Category(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    objects = CategoryQuerySet.as_manager()
+
     class Meta:
         verbose_name_plural = "categories"
         ordering = ["name"]
         constraints = [
             models.UniqueConstraint(
                 fields=["user", "name", "type"],
-                name="unique_category_per_user",
-            )
+                condition=models.Q(household__isnull=True),
+                name="unique_personal_category",
+            ),
+            models.UniqueConstraint(
+                fields=["household", "name", "type"],
+                condition=models.Q(household__isnull=False),
+                name="unique_household_category",
+            ),
         ]
 
     def __str__(self):
@@ -90,13 +173,28 @@ class Category(models.Model):
             raise ValidationError({"name": "Name cannot be blank."})
 
 
+class TransactionQuerySet(models.QuerySet):
+    def in_scope(self, user, household):
+        """Transactions visible in the active scope (personal or a group)."""
+        if household is None:
+            return self.filter(user=user, household__isnull=True)
+        return self.filter(household=household)
+
+
 class Transaction(models.Model):
-    """A single income or expense entry owned by a user."""
+    """A single income or expense entry, personal or shared in a group."""
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="transactions",
+    )
+    household = models.ForeignKey(
+        Household,
+        on_delete=models.CASCADE,
+        related_name="transactions",
+        null=True,
+        blank=True,
     )
     category = models.ForeignKey(
         Category,
@@ -120,6 +218,8 @@ class Transaction(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    objects = TransactionQuerySet.as_manager()
+
     class Meta:
         ordering = ["-date", "-created_at"]
 
@@ -138,12 +238,21 @@ class Transaction(models.Model):
         if self.description:
             self.description = self.description.strip()
 
-        # The category must belong to the same user as the transaction.
-        if self.category_id and self.user_id:
-            if self.category.user_id != self.user_id:
-                raise ValidationError(
-                    {"category": "Category must belong to the same user."}
-                )
+        # The category must belong to the same scope as the transaction.
+        if self.category_id:
+            if self.household_id:
+                if self.category.household_id != self.household_id:
+                    raise ValidationError(
+                        {"category": "Category must belong to the same group."}
+                    )
+            elif self.user_id:
+                if (
+                    self.category.household_id is not None
+                    or self.category.user_id != self.user_id
+                ):
+                    raise ValidationError(
+                        {"category": "Category must belong to the same user."}
+                    )
 
         # The category type must match the transaction type.
         if self.category_id and self.type:

@@ -17,6 +17,11 @@
             <span class="grid h-9 w-9 place-items-center rounded-2xl bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 text-base font-extrabold text-white">e</span>
             <span class="text-xl font-extrabold tracking-tight">emy</span>
         </a>
+        <a href="{% url 'finances:scope_switch' %}" class="flex items-center gap-1.5 rounded-full bg-emy-surface px-4 py-2 text-sm font-semibold text-emy-ink-soft shadow-sm transition hover:text-emy-pink-600">
+            <span class="h-2 w-2 rounded-full {% if active_household %}bg-emy-purple-500{% else %}bg-emy-pink-500{% endif %}"></span>
+            {% if active_household %}{{ active_household.name }}{% else %}Pessoal{% endif %}
+            <span class="text-emy-ink-mute">▾</span>
+        </a>
         <div class="flex items-center gap-3">
             <a href="{% url 'finances:profile_edit' %}" class="hidden text-sm font-medium text-emy-ink-soft transition hover:text-emy-pink-600 sm:inline">{{ user.first_name|default:user.username }}</a>
             <form method="post" action="{% url 'logout' %}">

@@ -29,10 +29,17 @@ compilado em `theme/static/css/dist/`, e arquivos de IDE/OS.
 
 ## Testes
 
-- Toda nova funcionalidade tem teste (`TestCase`), cobrindo o caminho feliz e
-  as validações de `clean()`/constraints.
-- Os testes do app ficam em [finances/tests.py](../finances/tests.py).
-- Rodar com `python manage.py test`.
+- Toda nova funcionalidade tem teste, cobrindo o caminho feliz e as validações
+  de `clean()`/constraints.
+- Os testes rodam com **pytest** (`pytest-django`). Config em
+  [pytest.ini](../pytest.ini): `DJANGO_SETTINGS_MODULE = core.settings` e
+  `python_files = tests.py test_*.py *_tests.py`.
+- Os testes do app ficam em [finances/tests.py](../finances/tests.py) — estilo
+  pytest (funções + fixtures, `pytestmark = pytest.mark.django_db`).
+- Rodar com `pytest` (ou `python -m pytest`).
+- Fixtures de usuário criam um `Profile` completo, senão o
+  `ProfileCompletionMiddleware` redireciona os testes de view para a tela de
+  perfil.
 
 ## Antes de cada release
 

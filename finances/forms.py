@@ -1,6 +1,59 @@
 from django import forms
+from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
+from django.db.models import Q
 
-from .models import Category, Profile, Transaction
+from .models import Category, Household, Profile, Transaction
+
+
+class HouseholdForm(forms.ModelForm):
+    class Meta:
+        model = Household
+        fields = ("name",)
+        widgets = {
+            "name": forms.TextInput(attrs={"placeholder": "Ex.: Casa"}),
+        }
+
+
+class MemberAddForm(forms.Form):
+    email = forms.EmailField()
+
+    def clean_email(self):
+        email = self.cleaned_data["email"].strip().lower()
+        user = User.objects.filter(
+            Q(email__iexact=email) | Q(username__iexact=email)
+        ).first()
+        if user is None:
+            raise ValidationError("Nenhuma conta encontrada com este e-mail.")
+        self.user = user
+        return email
+
+
+class RegistrationForm(UserCreationForm):
+    """Sign up using the e-mail as the identifier (stored as the username too)."""
+
+    email = forms.EmailField(required=True)
+
+    class Meta(UserCreationForm.Meta):
+        model = User
+        fields = ("email",)
+
+    def clean_email(self):
+        email = self.cleaned_data["email"].strip().lower()
+        if User.objects.filter(
+            Q(email__iexact=email) | Q(username__iexact=email)
+        ).exists():
+            raise ValidationError("Já existe uma conta com este e-mail.")
+        return email
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.username = self.cleaned_data["email"]
+        user.email = self.cleaned_data["email"]
+        if commit:
+            user.save()
+        return user
 
 
 class CategoryForm(forms.ModelForm):
@@ -33,20 +86,22 @@ class TransactionForm(forms.ModelForm):
             "notes": forms.Textarea(attrs={"rows": 3}),
         }
 
-    def __init__(self, *args, user=None, **kwargs):
+    def __init__(self, *args, user=None, household=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.user = user
-        # Only let the user pick their own active categories.
+        self.household = household
+        # Only show active categories from the active scope (personal or group).
         if user is not None:
-            self.fields["category"].queryset = Category.objects.filter(
-                user=user, is_active=True
-            )
+            self.fields["category"].queryset = Category.objects.in_scope(
+                user, household
+            ).filter(is_active=True)
 
     def clean(self):
         cleaned_data = super().clean()
-        # Attach the owner before model.clean() runs the cross-field checks.
+        # Attach owner and scope before model.clean() runs the cross-field checks.
         if self.user is not None:
             self.instance.user = self.user
+        self.instance.household = self.household
         return cleaned_data
 
 
