@@ -57,13 +57,19 @@ pelo app `finances`, que tem o seu próprio `base.html`.
 | `finances/household_list.html` | Lista dos grupos do usuário + botão "Novo grupo". |
 | `finances/household_form.html` | Criação de grupo (nome). |
 | `finances/household_detail.html` | Membros do grupo; o dono adiciona membro por e-mail e remove membros. |
-| `finances/dashboard.html` | Saudação (usa `first_name`), card de saldo com gradiente (saldo/entrou/saiu) + lista de lançamentos recentes. |
+| `finances/dashboard.html` | Saudação (usa `first_name`), card de saldo com gradiente (saldo/entrou/saiu/investido) + atalho "Listas da casa" quando o escopo é grupo + lista de lançamentos recentes. |
 | `finances/transaction_list.html` | Pills de filtro por tipo + lista de transações em cards arredondados. |
 | `finances/transaction_form.html` | Card dividido: toggle Despesa/Receita, valor grande, pills de categoria, data, método, observações. |
 | `finances/category_list.html` | Grid de cards de categoria. |
 | `finances/category_form.html` | Formulário de categoria (toggle de tipo, cor, ícone, ativo). |
 | `finances/profile_form.html` | Formulário de perfil (nome, sobrenome, data de nascimento, telefone). Usado no preenchimento pós-cadastro e na edição. |
-| `finances/confirm_delete.html` | Confirmação de exclusão (reusado por transação e categoria). |
+| `finances/investment_list.html` | Objetivos de investimento em cards com barra de progresso + total investido. |
+| `finances/investment_form.html` | Criação/edição de objetivo (nome, meta, prazo opcional). |
+| `finances/investment_detail.html` | Objetivo + progresso + form de aporte + lista de aportes. |
+| `finances/list_index.html` | Listas de casa do grupo + botão "Nova lista". |
+| `finances/list_form.html` | Criação de lista (nome). |
+| `finances/list_detail.html` | Itens da lista com checkbox (toggle via POST) + form para adicionar item. |
+| `finances/confirm_delete.html` | Confirmação de exclusão (reusado por transação, categoria, objetivo e lista). |
 | `registration/login.html` | Tela de login por e-mail (card dividido com painel de gradiente; o campo mantém `name="username"`, exibido como "E-mail"). |
 | `registration/register.html` | Tela de cadastro por e-mail (mesmo padrão do login; campo `email`). |
 
@@ -99,7 +105,10 @@ A tela de perfil (`profile_form.html`) foi adicionada depois, já na
 identidade Petal, junto com o model `Profile`. As telas de grupo
 (`scope_switch`, `household_list`, `household_form`, `household_detail`) e a
 pílula de escopo no `base.html` vieram com a feature de compartilhamento, na
-mesma identidade. O cadastro/login passaram a usar e-mail.
+mesma identidade. O cadastro/login passaram a usar e-mail. Depois vieram as
+telas de **investimentos** (`investment_*`) e de **listas de casa**
+(`list_*`); a nav inferior ganhou o item "Investir" (Início / Lançamentos /
+Investir / Categorias / `+`).
 
 Pendências de UI conhecidas:
 

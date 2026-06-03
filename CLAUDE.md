@@ -110,7 +110,7 @@ Ao adicionar ou editar funcionalidades em qualquer app, seguir sempre esta ordem
 
 ## Visão Geral do Projeto
 
-**Finances** é uma aplicação web de finanças pessoais. O usuário registra receitas e despesas, organiza-as em categorias customizáveis e acompanha o resultado do mês em um dashboard. Cada conta tem suas finanças pessoais privadas e pode participar de **grupos** (`Household`) — espaços compartilhados onde os membros lançam e acompanham contas em conjunto (ex.: a conta da casa de um casal). O cadastro e o login são por **e-mail**.
+**Finances** é uma aplicação web de finanças pessoais. O usuário registra receitas e despesas, organiza-as em categorias customizáveis e acompanha o resultado do mês em um dashboard. Cada conta tem suas finanças pessoais privadas e pode participar de **grupos** (`Household`) — espaços compartilhados onde os membros lançam e acompanham contas em conjunto (ex.: a conta da casa de um casal). Há ainda **investimentos com objetivos** (pessoal e grupo, fluxo separado do caixa) e **listas de casa** (checklists compartilhadas, só em grupo). O cadastro e o login são por **e-mail**.
 
 **Stack:**
 - Python 3.14 / Django 6.0.5
@@ -271,6 +271,40 @@ Liga um usuário a um grupo (o dono também tem membership, criada junto com o g
 - `joined_at` DateTimeField — `auto_now_add`
 - `Meta`: `UniqueConstraint(household, user)` (`unique_household_member`)
 
+### InvestmentGoal
+
+Objetivo de investimento com meta, pessoal ou de grupo. Fluxo separado das transações.
+
+- `user` FK → `auth.User` (CASCADE, `related_name="investment_goals"`) — criador
+- `household` FK → `Household` (`null=True, blank=True`, CASCADE, `related_name="investment_goals"`) — nulo = pessoal; preenchido = grupo
+- `name` CharField(80); `target_amount` Decimal(12,2) `MinValueValidator(0.01)`; `target_date` DateField (opcional); `is_active` Bool (default True); `created_at`
+- Manager `InvestmentGoalQuerySet.in_scope(user, household)`
+- `@property invested` (soma dos aportes); `@property progress` (% da meta, limitado a 100)
+- `clean()` trim do nome; `__str__` = name
+
+### InvestmentContribution
+
+Aporte individual em um objetivo.
+
+- `goal` FK → `InvestmentGoal` (CASCADE, `related_name="contributions"`)
+- `user` FK → `auth.User` (CASCADE, `related_name="contributions"`) — quem aportou
+- `amount` Decimal(12,2) `MinValueValidator(0.01)`; `date` DateField; `notes` TextField (blank); `created_at`
+- `Meta.ordering = ["-date", "-created_at"]`. O escopo deriva do `goal`; o dashboard soma os aportes do mês no escopo e os subtrai do saldo.
+
+### HouseholdList
+
+Lista nomeada (checklist) de um grupo — só existe em grupo.
+
+- `household` FK → `Household` (CASCADE, `related_name="lists"`); `name` CharField(80); `created_at`
+- `clean()` trim; `__str__` = name
+
+### HouseholdListItem
+
+Item de uma lista de casa.
+
+- `list` FK → `HouseholdList` (CASCADE, `related_name="items"`); `text` CharField(200); `is_done` Bool (default False); `created_at`
+- `Meta.ordering = ["is_done", "created_at"]` (pendentes primeiro)
+
 ### Regras de integridade
 
 - `Category`: unicidade por escopo — `unique_personal_category` `(user, name, type)` (pessoal) e `unique_household_category` `(household, name, type)` (grupo).
@@ -293,6 +327,10 @@ Liga um usuário a um grupo (o dono também tem membership, criada junto com o g
 - **`ProfileForm`** — `ModelForm` de `Profile`, campos `birth_date` e `phone`, mais os campos declarados `first_name` e `last_name` (que gravam no `User` nativo, não no `Profile`). O `__init__` recebe `user=` por kwarg e pré-popula `first_name`/`last_name` com os valores atuais do `User`. O `save()` grava o `Profile` e o `User` na mesma chamada. Widgets: `birth_date` (`type=date`), `phone` (placeholder).
 - **`HouseholdForm`** — `ModelForm` de `Household`, campo `name`. O `created_by` é atribuído na view.
 - **`MemberAddForm`** — `Form` com campo `email`; valida que existe uma conta com aquele e-mail (busca por `email`/`username`) e expõe o usuário encontrado em `self.user`.
+- **`InvestmentGoalForm`** — `ModelForm` de `InvestmentGoal`: `name`, `target_amount`, `target_date` (`type=date`). `user`/`household` atribuídos na view.
+- **`ContributionForm`** — `ModelForm` de `InvestmentContribution`: `amount`, `date` (`type=date`), `notes`. `goal`/`user` atribuídos na view.
+- **`HouseholdListForm`** — `ModelForm` de `HouseholdList`, campo `name`.
+- **`HouseholdListItemForm`** — `ModelForm` de `HouseholdListItem`, campo `text`.
 
 ---
 
@@ -319,6 +357,13 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a �
 | `household_detail` | `finances:household_detail` | Membros do grupo; o dono adiciona/remove. |
 | `member_add` | `finances:member_add` | Adiciona membro por e-mail (só o dono). |
 | `member_remove` | `finances:member_remove` | Remove membro (só o dono; nunca o dono). |
+| `investment_list` | `finances:investment_list` | Objetivos do escopo + total investido. |
+| `investment_create/update/delete` | `finances:investment_*` | CRUD de objetivo (dentro do escopo). |
+| `investment_detail` | `finances:investment_detail` | Objetivo + progresso + aportes + form de aporte. |
+| `contribution_create/delete` | `finances:contribution_*` | Registra/remove aporte. |
+| `list_index` | `finances:list_index` | Listas do grupo ativo (redireciona se escopo pessoal). |
+| `list_create/detail/delete` | `finances:list_*` | CRUD de lista de casa (só grupo). |
+| `list_item_add/toggle/delete` | `finances:list_item_*` | Adiciona/marca/remove item (POST). |
 
 **Padrão obrigatório de isolamento por escopo:** toda query de leitura/escrita de `Category` e `Transaction` passa pelos managers `Model.objects.in_scope(request.user, household)`, com `household = get_active_household(request)`. No escopo pessoal filtra por `user` + `household IS NULL`; no de grupo, por `household` (com a membership já validada). Sem esse filtro, vazam dados pessoais de outros usuários ou de grupos dos quais não se é membro.
 
@@ -351,6 +396,8 @@ Feedback de sucesso/erro é dado via `django.contrib.messages` após cada ação
 - `groups/<int:pk>/` → `household_detail`
 - `groups/<int:pk>/members/add/` → `member_add`
 - `groups/<int:pk>/members/<int:user_id>/remove/` → `member_remove`
+- `investments/`, `investments/new/`, `investments/<int:pk>/`, `investments/<int:pk>/edit/`, `investments/<int:pk>/delete/`, `investments/<int:pk>/contributions/add/`, `investments/<int:pk>/contributions/<int:contrib_pk>/delete/`
+- `lists/`, `lists/new/`, `lists/<int:pk>/`, `lists/<int:pk>/delete/`, `lists/<int:pk>/items/add/`, `lists/<int:pk>/items/<int:item_pk>/toggle/`, `lists/<int:pk>/items/<int:item_pk>/delete/`
 
 ---
 
@@ -360,18 +407,24 @@ Feedback de sucesso/erro é dado via `django.contrib.messages` após cada ação
 
 Todos os templates abaixo já estão na identidade visual Emy/Petal (ver seção Frontend / TailwindCSS).
 
-- `base.html` — layout base: header (logo Emy + pílula de escopo ativo + nome do usuário com link para o perfil + Sair), nav inferior flutuante (Início / Lançamentos / Categorias / botão `+`, com item ativo via `request.resolver_match`), bloco de mensagens. A pílula central mostra o escopo atual ("Pessoal" ou nome do grupo) e leva ao `scope_switch`. O nome exibido é `first_name` (com fallback para `username`). Estilização 100% Tailwind, sem `<style>` inline.
+- `base.html` — layout base: header (logo Emy + pílula de escopo ativo + nome do usuário com link para o perfil + Sair), nav inferior flutuante (Início / Lançamentos / Investir / Categorias / botão `+`, com item ativo via `request.resolver_match`), bloco de mensagens, e uma barra de progresso de topo (loading) disparada por cliques/submits. A pílula central mostra o escopo atual ("Pessoal" ou nome do grupo) e leva ao `scope_switch`. O nome exibido é `first_name` (com fallback para `username`). Estilização 100% Tailwind, sem `<style>` inline.
 - `finances/scope_switch.html` — escolha do escopo ativo (Pessoal ou um grupo) + link "Gerenciar grupos".
 - `finances/household_list.html` — lista de grupos + "Novo grupo".
 - `finances/household_form.html` — criação de grupo (nome).
 - `finances/household_detail.html` — membros do grupo; o dono adiciona membro por e-mail e remove membros.
-- `finances/dashboard.html` — saudação (usa `first_name`), card de saldo com gradiente (saldo/entrou/saiu) + lista de lançamentos recentes.
+- `finances/dashboard.html` — saudação (usa `first_name`), card de saldo com gradiente (saldo/entrou/saiu/investido) + atalho "Listas da casa" (só em escopo de grupo) + lista de lançamentos recentes.
 - `finances/transaction_list.html` — pills de filtro por tipo + lista de transações em cards arredondados.
 - `finances/transaction_form.html` — card dividido: toggle Despesa/Receita, valor grande, pills de categoria, data, método de pagamento e observações.
 - `finances/category_list.html` — grid de cards de categoria.
 - `finances/category_form.html` — formulário de criação/edição de categoria (toggle de tipo, cor, ícone, ativo).
 - `finances/profile_form.html` — formulário de perfil (nome, sobrenome, data de nascimento, telefone). Usado tanto no preenchimento pós-cadastro quanto na edição.
-- `finances/confirm_delete.html` — confirmação de exclusão (reusado por transação e categoria; título derivado de `object._meta.model_name`).
+- `finances/investment_list.html` — objetivos em cards com barra de progresso + total investido.
+- `finances/investment_form.html` — criação/edição de objetivo (nome, meta, prazo opcional).
+- `finances/investment_detail.html` — objetivo + progresso + form de aporte + lista de aportes.
+- `finances/list_index.html` — listas de casa do grupo + "Nova lista".
+- `finances/list_form.html` — criação de lista (nome).
+- `finances/list_detail.html` — itens com checkbox (toggle via POST) + form para adicionar item.
+- `finances/confirm_delete.html` — confirmação de exclusão (reusado por transação, categoria, objetivo e lista; título derivado de `object._meta.model_name`).
 - `registration/login.html` — tela de login por e-mail (card dividido; campo mantém `name="username"`, exibido como "E-mail").
 - `registration/register.html` — tela de cadastro por e-mail (mesmo padrão do login; campo `email`).
 
@@ -385,6 +438,8 @@ Todos os templates abaixo já estão na identidade visual Emy/Petal (ver seção
 - **`CategoryAdmin`** — `list_display`, `list_filter` (tipo, ativo, grupo, data), `search_fields`, `autocomplete_fields = ("user", "household")`.
 - **`TransactionAdmin`** — `list_display`, `list_filter` (tipo, método, data, categoria, grupo), `search_fields`, `autocomplete_fields = ("user", "household", "category")`, `date_hierarchy = "date"`.
 - **`HouseholdAdmin`** — com inline de membros (`HouseholdMembership`); e **`HouseholdMembershipAdmin`**.
+- **`InvestmentGoalAdmin`** — com inline de aportes (`InvestmentContribution`); e **`InvestmentContributionAdmin`**.
+- **`HouseholdListAdmin`** — com inline de itens (`HouseholdListItem`).
 
 ---
 
@@ -433,6 +488,8 @@ Todos os templates abaixo já estão na identidade visual Emy/Petal (ver seção
 - **Escopo pessoal x grupo via `household` opcional (não tabelas separadas)**: `Category`/`Transaction` ganharam um FK `household` anulável — nulo = pessoal, preenchido = do grupo. O escopo ativo vive na sessão (`active_household_id`), resolvido por `get_active_household(request)` (que valida a membership) e aplicado pelos managers `in_scope(user, household)` / `Household.objects.for_user(user)`. Um context processor expõe o escopo aos templates. Mais simples que duplicar models e mantém o ORM DRY.
 - **Login por e-mail sem custom user model**: para padronizar a identidade por e-mail (e permitir adicionar membros por e-mail) sem o risco de trocar `AUTH_USER_MODEL`, o `RegistrationForm` grava o e-mail também no `username`. O login padrão do Django (por `username`) passa a funcionar com o e-mail por serem iguais — sem backend de auth próprio.
 - **Gestão de membros restrita ao dono**: só `Household.created_by` adiciona/remove membros; o dono não pode ser removido. `created_by` em `CASCADE` é escolha de MVP (apagar a conta do dono apaga o grupo) — sem tela de exclusão de grupo/conta ainda.
+- **Investimentos como fluxo separado (aporte não vira `Transaction`)**: `InvestmentGoal`/`InvestmentContribution` são models próprios e reusam o escopo (`household` anulável + `in_scope`). O aporte não duplica em `Transaction`; o dashboard soma os aportes do mês no escopo e os subtrai do saldo. Assim a seção de investimentos fica separada (telas/lista próprias) e o aporte ainda reflete como saída de caixa, sem mexer na obrigatoriedade de `category`.
+- **Listas de casa só em grupo**: `HouseholdList` tem `household` obrigatório (não há lista pessoal). As views exigem escopo de grupo ativo e restringem o acesso às listas dos grupos do usuário; o acesso é via atalho no dashboard quando o escopo é um grupo.
 - **TailwindCSS no modo standalone (sem Node.js)**: optou-se por `django-tailwind` 4.x + `pytailwindcss` em vez do modo "full" que exige Node/npm. Mantém o ambiente de desenvolvimento 100% Python — só `pip install` e os comandos `manage.py tailwind`. O binário do Tailwind CLI é baixado pelo `pytailwindcss`.
 - **Identidade visual "Petal" (TailwindCSS)**: a UI foi migrada da v1 (CSS inline) para a identidade Emy, variação **"Petal"** — off-white rosado, soft/feminino com glow, cards bem arredondados, gradiente rosa→roxo, nav inferior flutuante. Escolhida entre três explorações de design (Soft Bloom / Petal / Aurora). Os tokens (cores `emy-*`, fontes) vivem no bloco `@theme` de `theme/static_src/src/styles.css`; o `<style>` inline do `base.html` foi removido. A migração cobriu só as telas com model atual (`Category`/`Transaction`) — Cartões, Metas, Insights, Transferência e Recorrência aparecem no mock mas não têm model e ficaram fora.
 - **Inputs renderizados campo a campo nos templates**: para ter controle total das classes Tailwind sem tocar em `forms.py`/`views.py`, os formulários (`login`, `register`, `transaction_form`, `category_form`, `profile_form`, telas de grupo) renderizam cada `<input>`/`<select>` manualmente com o `name=` correto, repondo o valor via `form.<campo>.value` e os erros via `form.<campo>.errors`. `type` e `category` viram radios estilizados (toggle/pills).

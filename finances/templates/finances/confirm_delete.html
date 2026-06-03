@@ -6,7 +6,7 @@
     <div class="rounded-[2rem] bg-emy-surface p-7 text-center shadow-[0_30px_80px_-30px_rgba(42,26,54,0.45)] sm:p-8">
         <div class="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-emy-bad/10 text-2xl">🗑️</div>
         <h1 class="mt-4 text-2xl font-extrabold tracking-tight">
-            Excluir {% if object._meta.model_name == 'category' %}categoria{% else %}lançamento{% endif %}?
+            Excluir {% if object._meta.model_name == 'category' %}categoria{% elif object._meta.model_name == 'investmentgoal' %}objetivo{% elif object._meta.model_name == 'householdlist' %}lista{% else %}lançamento{% endif %}?
         </h1>
         <p class="mt-2 text-sm text-emy-ink-soft">
             Tem certeza que deseja excluir <strong class="text-emy-ink">{{ object }}</strong>?

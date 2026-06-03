@@ -60,5 +60,3 @@ template.
 
 - Desenvolvimento: SQLite (`db.sqlite3`), criado pelo `migrate`.
 - O arquivo `db.sqlite3` está no `.gitignore` e não é versionado.
-</content>
-</invoke>

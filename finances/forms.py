@@ -4,7 +4,16 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.db.models import Q
 
-from .models import Category, Household, Profile, Transaction
+from .models import (
+    Category,
+    Household,
+    HouseholdList,
+    HouseholdListItem,
+    InvestmentContribution,
+    InvestmentGoal,
+    Profile,
+    Transaction,
+)
 
 
 class HouseholdForm(forms.ModelForm):
@@ -135,3 +144,43 @@ class ProfileForm(forms.ModelForm):
         if commit:
             profile.save()
         return profile
+
+
+class InvestmentGoalForm(forms.ModelForm):
+    class Meta:
+        model = InvestmentGoal
+        fields = ("name", "target_amount", "target_date")
+        widgets = {
+            "name": forms.TextInput(attrs={"placeholder": "Ex.: Reserva de emergência"}),
+            "target_amount": forms.NumberInput(attrs={"step": "0.01", "min": "0.01"}),
+            "target_date": forms.DateInput(attrs={"type": "date"}),
+        }
+
+
+class ContributionForm(forms.ModelForm):
+    class Meta:
+        model = InvestmentContribution
+        fields = ("amount", "date", "notes")
+        widgets = {
+            "amount": forms.NumberInput(attrs={"step": "0.01", "min": "0.01"}),
+            "date": forms.DateInput(attrs={"type": "date"}),
+            "notes": forms.Textarea(attrs={"rows": 2}),
+        }
+
+
+class HouseholdListForm(forms.ModelForm):
+    class Meta:
+        model = HouseholdList
+        fields = ("name",)
+        widgets = {
+            "name": forms.TextInput(attrs={"placeholder": "Ex.: Compras"}),
+        }
+
+
+class HouseholdListItemForm(forms.ModelForm):
+    class Meta:
+        model = HouseholdListItem
+        fields = ("text",)
+        widgets = {
+            "text": forms.TextInput(attrs={"placeholder": "Adicionar item"}),
+        }

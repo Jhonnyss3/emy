@@ -120,6 +120,10 @@ usuários sobre a mesma carteira (conta compartilhada).
 | RF24 | O usuário pode alternar o escopo ativo entre Pessoal e cada grupo. | Alta |
 | RF25 | Dashboard, transações e categorias operam sempre no escopo ativo; dados pessoais ficam privados e dados de grupo são compartilhados entre os membros. | Alta |
 | RF26 | Categorias e transações podem pertencer a um grupo (`household`) ou serem pessoais. | Alta |
+| RF27 | O usuário pode criar objetivos de investimento (nome, meta de valor, prazo opcional), pessoais ou de grupo. | Média |
+| RF28 | O usuário pode registrar aportes em um objetivo e acompanhar o progresso (soma dos aportes vs meta). | Média |
+| RF29 | Os aportes do mês entram como saída de caixa no saldo do dashboard, mas a seção de investimentos é separada da lista de lançamentos. | Média |
+| RF30 | Em grupo, os membros podem criar listas nomeadas (checklists) com itens marcáveis como concluídos. | Média |
 
 ### 6.1 Flowchart Mermaid — fluxos de UX
 
@@ -333,6 +337,42 @@ classDiagram
         +DateTime joined_at
     }
 
+    class InvestmentGoal {
+        +int id
+        +FK user
+        +FK household
+        +String name
+        +Decimal target_amount
+        +Date target_date
+        +Boolean is_active
+        +invested() Decimal
+        +progress() int
+    }
+
+    class InvestmentContribution {
+        +int id
+        +FK goal
+        +FK user
+        +Decimal amount
+        +Date date
+        +Text notes
+    }
+
+    class HouseholdList {
+        +int id
+        +FK household
+        +String name
+        +DateTime created_at
+    }
+
+    class HouseholdListItem {
+        +int id
+        +FK list
+        +String text
+        +Boolean is_done
+        +DateTime created_at
+    }
+
     User "1" --> "0..*" Category : possui
     User "1" --> "0..*" Transaction : possui
     User "1" --> "0..1" Profile : perfil
@@ -341,6 +381,11 @@ classDiagram
     Household "1" --> "0..*" HouseholdMembership : tem
     Household "1" --> "0..*" Category : escopo
     Household "1" --> "0..*" Transaction : escopo
+    User "1" --> "0..*" InvestmentGoal : possui
+    Household "1" --> "0..*" InvestmentGoal : escopo
+    InvestmentGoal "1" --> "0..*" InvestmentContribution : aportes
+    Household "1" --> "0..*" HouseholdList : tem
+    HouseholdList "1" --> "0..*" HouseholdListItem : itens
     Category "1" --> "0..*" Transaction : categoriza (PROTECT)
 
     Category ..> TransactionType : type
@@ -360,6 +405,11 @@ erDiagram
     HOUSEHOLD ||--o{ HOUSEHOLD_MEMBERSHIP : "tem"
     HOUSEHOLD ||--o{ CATEGORY : "escopo"
     HOUSEHOLD ||--o{ TRANSACTION : "escopo"
+    HOUSEHOLD ||--o{ HOUSEHOLD_LIST : "tem"
+    HOUSEHOLD_LIST ||--o{ HOUSEHOLD_LIST_ITEM : "itens"
+    USER ||--o{ INVESTMENT_GOAL : "possui"
+    HOUSEHOLD ||--o{ INVESTMENT_GOAL : "escopo"
+    INVESTMENT_GOAL ||--o{ INVESTMENT_CONTRIBUTION : "aportes"
     CATEGORY ||--o{ TRANSACTION : "categoriza"
 
     USER {
@@ -420,6 +470,42 @@ erDiagram
         datetime created_at
         datetime updated_at
     }
+
+    INVESTMENT_GOAL {
+        int id PK
+        int user_id FK
+        int household_id FK "null = pessoal"
+        string name
+        decimal target_amount "min 0.01"
+        date target_date "opcional"
+        bool is_active "default true"
+        datetime created_at
+    }
+
+    INVESTMENT_CONTRIBUTION {
+        int id PK
+        int goal_id FK
+        int user_id FK
+        decimal amount "min 0.01"
+        date date
+        text notes "opcional"
+        datetime created_at
+    }
+
+    HOUSEHOLD_LIST {
+        int id PK
+        int household_id FK
+        string name
+        datetime created_at
+    }
+
+    HOUSEHOLD_LIST_ITEM {
+        int id PK
+        int list_id FK
+        string text
+        bool is_done "default false"
+        datetime created_at
+    }
 ```
 
 **Regras de integridade**
@@ -435,6 +521,10 @@ erDiagram
 - `HouseholdMembership`: `UniqueConstraint(household, user)` → uma membership por par.
 - `Category.household` / `Transaction.household`: FK anulável → nulo = pessoal,
   preenchido = compartilhado no grupo.
+- `InvestmentGoal.target_amount` / `InvestmentContribution.amount`:
+  `MinValueValidator(0.01)`. `InvestmentGoal.household` anulável (pessoal/grupo);
+  os aportes do mês no escopo entram como saída no saldo do dashboard.
+- `HouseholdList.household`: FK obrigatória → listas existem só em grupo.
 
 ---
 

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }} · Emy{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-md">
+    <div class="mb-6 flex items-center gap-3">
+        <button type="button" onclick="history.back()"
+                class="grid h-10 w-10 place-items-center rounded-full bg-emy-surface text-lg text-emy-ink-soft shadow-sm transition hover:text-emy-pink-600"
+                aria-label="Voltar">←</button>
+        <h1 class="text-3xl font-extrabold tracking-tight">{{ title }}</h1>
+    </div>
+
+    <form method="post" class="space-y-4 rounded-[1.75rem] bg-emy-surface p-6 shadow-sm">
+        {% csrf_token %}
+        <div>
+            <label for="id_name" class="mb-1 block text-sm font-semibold text-emy-ink-soft">Nome do objetivo</label>
+            <input type="text" name="name" id="id_name" value="{{ form.name.value|default:'' }}" placeholder="Ex.: Reserva de emergência" autofocus required
+                   class="w-full rounded-2xl bg-emy-bg px-4 py-3 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">
+            {% for error in form.name.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
+        </div>
+        <div>
+            <label for="id_target_amount" class="mb-1 block text-sm font-semibold text-emy-ink-soft">Meta (R$)</label>
+            <input type="number" name="target_amount" id="id_target_amount" value="{{ form.target_amount.value|default:'' }}" step="0.01" min="0.01" required
+                   class="w-full rounded-2xl bg-emy-bg px-4 py-3 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">
+            {% for error in form.target_amount.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
+        </div>
+        <div>
+            <label for="id_target_date" class="mb-1 block text-sm font-semibold text-emy-ink-soft">Prazo <span class="text-emy-ink-mute">(opcional)</span></label>
+            <input type="date" name="target_date" id="id_target_date" value="{{ form.target_date.value|default:'' }}"
+                   class="w-full rounded-2xl bg-emy-bg px-4 py-3 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">
+            {% for error in form.target_date.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
+        </div>
+        <button type="submit"
+                class="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 px-4 py-3.5 text-sm font-bold text-white shadow-[0_14px_30px_-10px_rgba(139,92,246,0.6)] transition hover:opacity-95">
+            Salvar objetivo <span aria-hidden="true">→</span>
+        </button>
+    </form>
+</div>
+{% endblock %}

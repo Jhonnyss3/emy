@@ -45,4 +45,50 @@ urlpatterns = [
         views.category_delete,
         name="category_delete",
     ),
+    path("investments/", views.investment_list, name="investment_list"),
+    path("investments/new/", views.investment_create, name="investment_create"),
+    path(
+        "investments/<int:pk>/",
+        views.investment_detail,
+        name="investment_detail",
+    ),
+    path(
+        "investments/<int:pk>/edit/",
+        views.investment_update,
+        name="investment_update",
+    ),
+    path(
+        "investments/<int:pk>/delete/",
+        views.investment_delete,
+        name="investment_delete",
+    ),
+    path(
+        "investments/<int:pk>/contributions/add/",
+        views.contribution_create,
+        name="contribution_create",
+    ),
+    path(
+        "investments/<int:pk>/contributions/<int:contrib_pk>/delete/",
+        views.contribution_delete,
+        name="contribution_delete",
+    ),
+    path("lists/", views.list_index, name="list_index"),
+    path("lists/new/", views.list_create, name="list_create"),
+    path("lists/<int:pk>/", views.list_detail, name="list_detail"),
+    path("lists/<int:pk>/delete/", views.list_delete, name="list_delete"),
+    path(
+        "lists/<int:pk>/items/add/",
+        views.list_item_add,
+        name="list_item_add",
+    ),
+    path(
+        "lists/<int:pk>/items/<int:item_pk>/toggle/",
+        views.list_item_toggle,
+        name="list_item_toggle",
+    ),
+    path(
+        "lists/<int:pk>/items/<int:item_pk>/delete/",
+        views.list_item_delete,
+        name="list_item_delete",
+    ),
 ]

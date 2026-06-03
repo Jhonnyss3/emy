@@ -10,7 +10,11 @@ from django.utils import timezone
 
 from .forms import (
     CategoryForm,
+    ContributionForm,
     HouseholdForm,
+    HouseholdListForm,
+    HouseholdListItemForm,
+    InvestmentGoalForm,
     MemberAddForm,
     ProfileForm,
     RegistrationForm,
@@ -19,7 +23,10 @@ from .forms import (
 from .models import (
     Category,
     Household,
+    HouseholdList,
     HouseholdMembership,
+    InvestmentContribution,
+    InvestmentGoal,
     Transaction,
     TransactionType,
 )
@@ -216,11 +223,19 @@ def dashboard(request):
         total=Sum("amount")
     )["total"] or Decimal("0")
 
+    # Investment contributions in the active scope count as money out of the cash flow.
+    invested = InvestmentContribution.objects.filter(
+        goal__in=InvestmentGoal.objects.in_scope(request.user, household),
+        date__year=today.year,
+        date__month=today.month,
+    ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
+
     context = {
         "today": today,
         "income": income,
         "expense": expense,
-        "balance": income - expense,
+        "invested": invested,
+        "balance": income - expense - invested,
         "recent": Transaction.objects.in_scope(request.user, household)
         .select_related("category")[:10],
     }
@@ -382,3 +397,231 @@ def category_delete(request, pk):
         "finances/confirm_delete.html",
         {"object": category, "title": "Delete category"},
     )
+
+
+@login_required
+def investment_list(request):
+    household = get_active_household(request)
+    goals = InvestmentGoal.objects.in_scope(request.user, household)
+    total_invested = sum((g.invested for g in goals), Decimal("0"))
+    return render(
+        request,
+        "finances/investment_list.html",
+        {"goals": goals, "total_invested": total_invested},
+    )
+
+
+@login_required
+def investment_create(request):
+    household = get_active_household(request)
+    if request.method == "POST":
+        form = InvestmentGoalForm(request.POST)
+        if form.is_valid():
+            goal = form.save(commit=False)
+            goal.user = request.user
+            goal.household = household
+            goal.save()
+            messages.success(request, "Objetivo criado.")
+            return redirect("finances:investment_detail", pk=goal.pk)
+    else:
+        form = InvestmentGoalForm()
+    return render(
+        request,
+        "finances/investment_form.html",
+        {"form": form, "title": "Novo objetivo"},
+    )
+
+
+@login_required
+def investment_update(request, pk):
+    household = get_active_household(request)
+    goal = get_object_or_404(
+        InvestmentGoal.objects.in_scope(request.user, household), pk=pk
+    )
+    if request.method == "POST":
+        form = InvestmentGoalForm(request.POST, instance=goal)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Objetivo atualizado.")
+            return redirect("finances:investment_detail", pk=goal.pk)
+    else:
+        form = InvestmentGoalForm(instance=goal)
+    return render(
+        request,
+        "finances/investment_form.html",
+        {"form": form, "title": "Editar objetivo"},
+    )
+
+
+@login_required
+def investment_delete(request, pk):
+    household = get_active_household(request)
+    goal = get_object_or_404(
+        InvestmentGoal.objects.in_scope(request.user, household), pk=pk
+    )
+    if request.method == "POST":
+        goal.delete()
+        messages.success(request, "Objetivo excluído.")
+        return redirect("finances:investment_list")
+    return render(
+        request,
+        "finances/confirm_delete.html",
+        {"object": goal, "title": "Excluir objetivo"},
+    )
+
+
+@login_required
+def investment_detail(request, pk):
+    household = get_active_household(request)
+    goal = get_object_or_404(
+        InvestmentGoal.objects.in_scope(request.user, household), pk=pk
+    )
+    return render(
+        request,
+        "finances/investment_detail.html",
+        {
+            "goal": goal,
+            "contributions": goal.contributions.select_related("user"),
+            "form": ContributionForm(),
+        },
+    )
+
+
+@login_required
+def contribution_create(request, pk):
+    household = get_active_household(request)
+    goal = get_object_or_404(
+        InvestmentGoal.objects.in_scope(request.user, household), pk=pk
+    )
+    if request.method == "POST":
+        form = ContributionForm(request.POST)
+        if form.is_valid():
+            contribution = form.save(commit=False)
+            contribution.goal = goal
+            contribution.user = request.user
+            contribution.save()
+            messages.success(request, "Aporte registrado.")
+            return redirect("finances:investment_detail", pk=goal.pk)
+        return render(
+            request,
+            "finances/investment_detail.html",
+            {
+                "goal": goal,
+                "contributions": goal.contributions.select_related("user"),
+                "form": form,
+            },
+        )
+    return redirect("finances:investment_detail", pk=goal.pk)
+
+
+@login_required
+def contribution_delete(request, pk, contrib_pk):
+    household = get_active_household(request)
+    goal = get_object_or_404(
+        InvestmentGoal.objects.in_scope(request.user, household), pk=pk
+    )
+    if request.method == "POST":
+        InvestmentContribution.objects.filter(goal=goal, pk=contrib_pk).delete()
+        messages.success(request, "Aporte removido.")
+    return redirect("finances:investment_detail", pk=goal.pk)
+
+
+def _user_lists(user):
+    """Household lists from every group the user belongs to."""
+    return HouseholdList.objects.filter(
+        household__in=Household.objects.for_user(user)
+    )
+
+
+@login_required
+def list_index(request):
+    household = get_active_household(request)
+    if household is None:
+        messages.error(request, "Escolha um grupo para ver as listas da casa.")
+        return redirect("finances:scope_switch")
+    return render(
+        request,
+        "finances/list_index.html",
+        {"household": household, "lists": household.lists.all()},
+    )
+
+
+@login_required
+def list_create(request):
+    household = get_active_household(request)
+    if household is None:
+        messages.error(request, "Escolha um grupo para criar uma lista.")
+        return redirect("finances:scope_switch")
+    if request.method == "POST":
+        form = HouseholdListForm(request.POST)
+        if form.is_valid():
+            house_list = form.save(commit=False)
+            house_list.household = household
+            house_list.save()
+            messages.success(request, "Lista criada.")
+            return redirect("finances:list_detail", pk=house_list.pk)
+    else:
+        form = HouseholdListForm()
+    return render(
+        request,
+        "finances/list_form.html",
+        {"form": form, "title": "Nova lista"},
+    )
+
+
+@login_required
+def list_detail(request, pk):
+    house_list = get_object_or_404(_user_lists(request.user), pk=pk)
+    return render(
+        request,
+        "finances/list_detail.html",
+        {
+            "list": house_list,
+            "items": house_list.items.all(),
+            "form": HouseholdListItemForm(),
+        },
+    )
+
+
+@login_required
+def list_delete(request, pk):
+    house_list = get_object_or_404(_user_lists(request.user), pk=pk)
+    if request.method == "POST":
+        house_list.delete()
+        messages.success(request, "Lista excluída.")
+        return redirect("finances:list_index")
+    return render(
+        request,
+        "finances/confirm_delete.html",
+        {"object": house_list, "title": "Excluir lista"},
+    )
+
+
+@login_required
+def list_item_add(request, pk):
+    house_list = get_object_or_404(_user_lists(request.user), pk=pk)
+    if request.method == "POST":
+        form = HouseholdListItemForm(request.POST)
+        if form.is_valid():
+            item = form.save(commit=False)
+            item.list = house_list
+            item.save()
+    return redirect("finances:list_detail", pk=house_list.pk)
+
+
+@login_required
+def list_item_toggle(request, pk, item_pk):
+    house_list = get_object_or_404(_user_lists(request.user), pk=pk)
+    if request.method == "POST":
+        item = get_object_or_404(house_list.items, pk=item_pk)
+        item.is_done = not item.is_done
+        item.save(update_fields=["is_done"])
+    return redirect("finances:list_detail", pk=house_list.pk)
+
+
+@login_required
+def list_item_delete(request, pk, item_pk):
+    house_list = get_object_or_404(_user_lists(request.user), pk=pk)
+    if request.method == "POST":
+        house_list.items.filter(pk=item_pk).delete()
+    return redirect("finances:list_detail", pk=house_list.pk)

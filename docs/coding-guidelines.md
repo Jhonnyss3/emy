@@ -93,5 +93,3 @@ model → form → view → url → template
   pré-popula `first_name`/`last_name` com os valores atuais do `User`. O
   `save()` grava o `Profile` e o `User` na mesma chamada. Widgets:
   `birth_date` (`type=date`), `phone` (placeholder).
-</content>
-</invoke>

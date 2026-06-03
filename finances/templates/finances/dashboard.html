@@ -18,17 +18,32 @@
             + Lançar
         </a>
     </div>
-    <div class="mt-6 grid grid-cols-2 gap-3">
+    <div class="mt-6 grid grid-cols-3 gap-3">
         <div class="rounded-2xl bg-white/15 p-4">
             <p class="text-xs font-semibold uppercase tracking-wider text-white/70">Entrou</p>
-            <p class="mt-1 text-xl font-bold">R$ {{ income|floatformat:2 }}</p>
+            <p class="mt-1 text-lg font-bold sm:text-xl">R$ {{ income|floatformat:2 }}</p>
         </div>
         <div class="rounded-2xl bg-white/15 p-4">
             <p class="text-xs font-semibold uppercase tracking-wider text-white/70">Saiu</p>
-            <p class="mt-1 text-xl font-bold">R$ {{ expense|floatformat:2 }}</p>
+            <p class="mt-1 text-lg font-bold sm:text-xl">R$ {{ expense|floatformat:2 }}</p>
         </div>
+        <a href="{% url 'finances:investment_list' %}" class="rounded-2xl bg-white/15 p-4 transition hover:bg-white/25">
+            <p class="text-xs font-semibold uppercase tracking-wider text-white/70">Investido</p>
+            <p class="mt-1 text-lg font-bold sm:text-xl">R$ {{ invested|floatformat:2 }}</p>
+        </a>
     </div>
 </div>
+
+{% if active_household %}
+<a href="{% url 'finances:list_index' %}"
+   class="mt-5 flex items-center justify-between rounded-[1.5rem] bg-emy-surface px-6 py-4 shadow-sm transition hover:shadow-md">
+    <span class="flex items-center gap-3">
+        <span class="grid h-10 w-10 place-items-center rounded-full bg-emy-purple-100 text-lg">📝</span>
+        <span class="font-semibold">Listas da casa</span>
+    </span>
+    <span class="text-emy-ink-mute" aria-hidden="true">→</span>
+</a>
+{% endif %}
 
 <div class="mt-5 rounded-[2rem] bg-emy-surface p-6 shadow-[0_20px_50px_-30px_rgba(42,26,54,0.4)] sm:p-7">
     <div class="flex items-center justify-between">

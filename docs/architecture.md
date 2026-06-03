@@ -18,8 +18,8 @@
 emy/
 ├── core/                 # Projeto Django (settings, urls, wsgi/asgi)
 ├── finances/             # App de domínio
-│   ├── models.py         # Category, Transaction, Profile, Household, HouseholdMembership, enums
-│   ├── forms.py          # RegistrationForm, CategoryForm, TransactionForm, ProfileForm, HouseholdForm, MemberAddForm
+│   ├── models.py         # Category, Transaction, Profile, Household(+Membership), InvestmentGoal(+Contribution), HouseholdList(+Item), enums
+│   ├── forms.py          # Registration, Category, Transaction, Profile, Household(+Member), InvestmentGoal, Contribution, HouseholdList(+Item)
 │   ├── views.py          # register, profile_edit, dashboard, CRUD, grupos e escopo
 │   ├── middleware.py     # ProfileCompletionMiddleware
 │   ├── context_processors.py  # scope: active_household + user_households nos templates
@@ -57,11 +57,14 @@ sessão (`request.session["active_household_id"]`).
 
 - `get_active_household(request)` (em `views.py`) resolve o escopo, validando a
   membership; cai em pessoal se o id for inválido.
-- Os managers `Transaction/Category.objects.in_scope(user, household)` e
-  `Household.objects.for_user(user)` centralizam o filtro.
+- Os managers `Transaction/Category/InvestmentGoal.objects.in_scope(user, household)`
+  e `Household.objects.for_user(user)` centralizam o filtro. Investimentos
+  reusam o mesmo escopo (objetivos pessoais ou de grupo).
 - O context processor `finances.context_processors.scope` expõe
   `active_household` e `user_households` a todos os templates (pílula de escopo
   no `base.html`).
+- O dashboard soma os aportes do mês no escopo ativo e os subtrai do saldo
+  (aporte conta como saída de caixa). Listas de casa existem só em grupo.
 
 ## Views e rotas
 
@@ -87,6 +90,13 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a
 | `household_detail` | `finances:household_detail` | Membros do grupo; o dono adiciona/remove. |
 | `member_add` | `finances:member_add` | Adiciona membro por e-mail (só o dono). |
 | `member_remove` | `finances:member_remove` | Remove membro (só o dono; nunca o dono). |
+| `investment_list` | `finances:investment_list` | Objetivos do escopo + total investido. |
+| `investment_create/update/delete` | `finances:investment_*` | CRUD de objetivo (dentro do escopo). |
+| `investment_detail` | `finances:investment_detail` | Objetivo + progresso + aportes + form de aporte. |
+| `contribution_create/delete` | `finances:contribution_*` | Registra/remove aporte num objetivo. |
+| `list_index` | `finances:list_index` | Listas do grupo ativo (redireciona se escopo pessoal). |
+| `list_create/detail/delete` | `finances:list_*` | CRUD de lista de casa (só grupo). |
+| `list_item_add/toggle/delete` | `finances:list_item_*` | Adiciona/marca/remove item (POST). |
 
 ### URLs
 
@@ -113,6 +123,13 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a
 - `groups/<int:pk>/` → `household_detail`
 - `groups/<int:pk>/members/add/` → `member_add`
 - `groups/<int:pk>/members/<int:user_id>/remove/` → `member_remove`
+- `investments/`, `investments/new/`, `investments/<int:pk>/`,
+  `investments/<int:pk>/edit/`, `investments/<int:pk>/delete/`,
+  `investments/<int:pk>/contributions/add/`,
+  `investments/<int:pk>/contributions/<int:contrib_pk>/delete/`
+- `lists/`, `lists/new/`, `lists/<int:pk>/`, `lists/<int:pk>/delete/`,
+  `lists/<int:pk>/items/add/`, `lists/<int:pk>/items/<int:item_pk>/toggle/`,
+  `lists/<int:pk>/items/<int:item_pk>/delete/`
 
 ## Admin
 
@@ -125,6 +142,9 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a
   `date_hierarchy = "date"`.
 - `HouseholdAdmin` — com inline de membros (`HouseholdMembership`).
 - `HouseholdMembershipAdmin`.
+- `InvestmentGoalAdmin` — com inline de aportes (`InvestmentContribution`);
+  `InvestmentContributionAdmin`.
+- `HouseholdListAdmin` — com inline de itens (`HouseholdListItem`).
 
 ## Settings relevantes (`core/settings.py`)
 
@@ -139,5 +159,3 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a
 - `SECRET_KEY`, `DEBUG` e `ALLOWED_HOSTS` vêm de variáveis de ambiente,
   carregadas de um `.env` na raiz pelo `python-dotenv` — ver
   [security.md](security.md).
-</content>
-</invoke>

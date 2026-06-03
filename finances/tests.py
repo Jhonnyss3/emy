@@ -9,7 +9,10 @@ from .forms import RegistrationForm
 from .models import (
     Category,
     Household,
+    HouseholdList,
     HouseholdMembership,
+    InvestmentContribution,
+    InvestmentGoal,
     Profile,
     Transaction,
 )
@@ -229,3 +232,121 @@ def test_same_name_allowed_across_scopes(user, household):
         user=user, household=household, name="Mercado", type="expense"
     )
     assert Category.objects.filter(name="Mercado").count() == 2
+
+
+# --- Investments ------------------------------------------------------------
+
+
+def test_goal_progress(user):
+    goal = InvestmentGoal.objects.create(
+        user=user, name="Viagem", target_amount=Decimal("1000")
+    )
+    InvestmentContribution.objects.create(
+        goal=goal, user=user, amount=Decimal("250"), date=date.today()
+    )
+    InvestmentContribution.objects.create(
+        goal=goal, user=user, amount=Decimal("150"), date=date.today()
+    )
+    assert goal.invested == Decimal("400")
+    assert goal.progress == 40
+
+
+def test_goal_progress_capped_at_100(user):
+    goal = InvestmentGoal.objects.create(
+        user=user, name="Meta baixa", target_amount=Decimal("100")
+    )
+    InvestmentContribution.objects.create(
+        goal=goal, user=user, amount=Decimal("500"), date=date.today()
+    )
+    assert goal.progress == 100
+
+
+def test_goal_scope_isolation(user, other, household):
+    HouseholdMembership.objects.create(household=household, user=other)
+    InvestmentGoal.objects.create(
+        user=user, name="Pessoal", target_amount=Decimal("100")
+    )
+    InvestmentGoal.objects.create(
+        user=user, household=household, name="Grupo", target_amount=Decimal("100")
+    )
+    assert InvestmentGoal.objects.in_scope(user, None).count() == 1
+    assert InvestmentGoal.objects.in_scope(user, household).count() == 1
+    # other sees the group goal but not user's personal one
+    assert InvestmentGoal.objects.in_scope(other, None).count() == 0
+    assert InvestmentGoal.objects.in_scope(other, household).count() == 1
+
+
+def test_contribution_counts_as_expense_in_dashboard(client, user):
+    goal = InvestmentGoal.objects.create(
+        user=user, name="Viagem", target_amount=Decimal("1000")
+    )
+    InvestmentContribution.objects.create(
+        goal=goal, user=user, amount=Decimal("200"), date=date.today()
+    )
+    client.force_login(user)
+    resp = client.get(reverse("finances:dashboard"))
+    assert resp.context["invested"] == Decimal("200")
+    # balance = income - expense - invested
+    assert resp.context["balance"] == Decimal("-200")
+
+
+def test_contribution_create_view(client, user):
+    goal = InvestmentGoal.objects.create(
+        user=user, name="Viagem", target_amount=Decimal("1000")
+    )
+    client.force_login(user)
+    client.post(
+        reverse("finances:contribution_create", args=[goal.pk]),
+        {"amount": "300", "date": date.today().isoformat()},
+    )
+    assert goal.contributions.count() == 1
+
+
+def test_non_member_cannot_open_group_goal(client, other, household):
+    goal = InvestmentGoal.objects.create(
+        user=household.created_by,
+        household=household,
+        name="Grupo",
+        target_amount=Decimal("100"),
+    )
+    client.force_login(other)  # not a member
+    resp = client.get(reverse("finances:investment_detail", args=[goal.pk]))
+    assert resp.status_code == 404
+
+
+# --- Household lists (group only) -------------------------------------------
+
+
+def test_list_create_requires_group_scope(client, user):
+    client.force_login(user)  # personal scope (no active household)
+    resp = client.post(reverse("finances:list_create"), {"name": "Compras"})
+    assert resp.status_code == 302
+    assert resp.url == reverse("finances:scope_switch")
+    assert HouseholdList.objects.count() == 0
+
+
+def test_list_and_item_flow(client, user, household):
+    client.force_login(user)
+    client.post(reverse("finances:scope_switch"), {"scope": str(household.pk)})
+    client.post(reverse("finances:list_create"), {"name": "Compras"})
+    house_list = HouseholdList.objects.get(name="Compras")
+    assert house_list.household == household
+
+    client.post(
+        reverse("finances:list_item_add", args=[house_list.pk]), {"text": "Arroz"}
+    )
+    item = house_list.items.get()
+    assert item.text == "Arroz" and item.is_done is False
+
+    client.post(
+        reverse("finances:list_item_toggle", args=[house_list.pk, item.pk])
+    )
+    item.refresh_from_db()
+    assert item.is_done is True
+
+
+def test_non_member_cannot_open_list(client, other, household):
+    house_list = HouseholdList.objects.create(household=household, name="Compras")
+    client.force_login(other)  # not a member
+    resp = client.get(reverse("finances:list_detail", args=[house_list.pk]))
+    assert resp.status_code == 404

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block title %}Listas da casa · Emy{% endblock %}
+
+{% block content %}
+<div class="mx-auto max-w-md">
+    <div class="mb-6 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <button type="button" onclick="history.back()"
+                    class="grid h-10 w-10 place-items-center rounded-full bg-emy-surface text-lg text-emy-ink-soft shadow-sm transition hover:text-emy-pink-600"
+                    aria-label="Voltar">←</button>
+            <h1 class="text-3xl font-extrabold tracking-tight">Listas</h1>
+        </div>
+        <a href="{% url 'finances:list_create' %}"
+           class="rounded-full bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 px-4 py-2.5 text-sm font-bold text-white shadow-md transition hover:opacity-95">
+            Nova lista
+        </a>
+    </div>
+
+    <p class="mb-5 text-sm text-emy-ink-mute">Organização compartilhada de {{ household.name }}.</p>
+
+    <div class="space-y-3">
+        {% for house_list in lists %}
+            <a href="{% url 'finances:list_detail' house_list.pk %}"
+               class="flex items-center justify-between rounded-[1.5rem] bg-emy-surface px-5 py-4 shadow-sm transition hover:shadow-md">
+                <span>
+                    <span class="block font-semibold">{{ house_list.name }}</span>
+                    <span class="block text-xs text-emy-ink-mute">{{ house_list.items.count }} ite{{ house_list.items.count|pluralize:"m,ns" }}</span>
+                </span>
+                <span class="text-emy-ink-mute" aria-hidden="true">→</span>
+            </a>
+        {% empty %}
+            <p class="rounded-[1.5rem] bg-emy-surface px-5 py-8 text-center text-sm text-emy-ink-mute shadow-sm">
+                Nenhuma lista ainda.<br>Crie uma para registrar o que a casa planeja.
+            </p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

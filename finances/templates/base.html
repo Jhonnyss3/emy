@@ -53,19 +53,24 @@
 
 {% if user.is_authenticated %}
     {% with url_name=request.resolver_match.url_name %}
-    <nav class="fixed inset-x-0 bottom-5 z-10 mx-auto flex w-fit items-center gap-1 rounded-full bg-emy-surface/90 p-2 shadow-[0_12px_40px_-12px_rgba(42,26,54,0.35)] backdrop-blur">
+    <nav class="fixed inset-x-0 bottom-5 z-10 mx-auto flex w-fit items-center gap-0.5 rounded-full bg-emy-surface/90 p-2 shadow-[0_12px_40px_-12px_rgba(42,26,54,0.35)] backdrop-blur">
         <a href="{% url 'finances:dashboard' %}"
-           class="rounded-full px-5 py-2.5 text-sm font-semibold transition
+           class="rounded-full px-3.5 py-2.5 text-sm font-semibold transition
            {% if url_name == 'dashboard' %}bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 text-white{% else %}text-emy-ink-soft hover:text-emy-pink-600{% endif %}">
             Início
         </a>
         <a href="{% url 'finances:transaction_list' %}"
-           class="rounded-full px-5 py-2.5 text-sm font-semibold transition
+           class="rounded-full px-3.5 py-2.5 text-sm font-semibold transition
            {% if url_name == 'transaction_list' %}bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 text-white{% else %}text-emy-ink-soft hover:text-emy-pink-600{% endif %}">
             Lançamentos
         </a>
+        <a href="{% url 'finances:investment_list' %}"
+           class="rounded-full px-3.5 py-2.5 text-sm font-semibold transition
+           {% if 'investment' in url_name or 'contribution' in url_name %}bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 text-white{% else %}text-emy-ink-soft hover:text-emy-pink-600{% endif %}">
+            Investir
+        </a>
         <a href="{% url 'finances:category_list' %}"
-           class="rounded-full px-5 py-2.5 text-sm font-semibold transition
+           class="rounded-full px-3.5 py-2.5 text-sm font-semibold transition
            {% if url_name == 'category_list' %}bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 text-white{% else %}text-emy-ink-soft hover:text-emy-pink-600{% endif %}">
             Categorias
         </a>

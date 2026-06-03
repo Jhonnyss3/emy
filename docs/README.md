@@ -25,5 +25,3 @@ dashboard. Cada conta enxerga apenas os próprios dados.
 
 O documento de requisitos completo está em [PRD.md](../PRD.md), na raiz do
 repositório.
-</content>
-</invoke>

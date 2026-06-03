@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, RegexValidator
@@ -266,3 +268,139 @@ class Transaction(models.Model):
                         )
                     }
                 )
+
+
+class InvestmentGoalQuerySet(models.QuerySet):
+    def in_scope(self, user, household):
+        """Goals visible in the active scope (personal or a group)."""
+        if household is None:
+            return self.filter(user=user, household__isnull=True)
+        return self.filter(household=household)
+
+
+class InvestmentGoal(models.Model):
+    """A savings/investment target with a goal amount, personal or shared."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="investment_goals",
+    )
+    household = models.ForeignKey(
+        Household,
+        on_delete=models.CASCADE,
+        related_name="investment_goals",
+        null=True,
+        blank=True,
+    )
+    name = models.CharField(max_length=80)
+    target_amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        validators=[MinValueValidator(0.01)],
+    )
+    target_date = models.DateField(null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = InvestmentGoalQuerySet.as_manager()
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+    def clean(self):
+        super().clean()
+        if self.name:
+            self.name = self.name.strip()
+        if not self.name:
+            raise ValidationError({"name": "Name cannot be blank."})
+
+    @property
+    def invested(self):
+        """Total contributed so far."""
+        total = self.contributions.aggregate(total=models.Sum("amount"))["total"]
+        return total or Decimal("0")
+
+    @property
+    def progress(self):
+        """Percentage of the target reached, capped at 100."""
+        if not self.target_amount:
+            return 0
+        pct = self.invested / self.target_amount * 100
+        return min(round(pct), 100)
+
+
+class InvestmentContribution(models.Model):
+    """A single deposit toward an investment goal."""
+
+    goal = models.ForeignKey(
+        InvestmentGoal,
+        on_delete=models.CASCADE,
+        related_name="contributions",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="contributions",
+    )
+    amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        validators=[MinValueValidator(0.01)],
+    )
+    date = models.DateField()
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-date", "-created_at"]
+
+    def __str__(self):
+        return f"{self.amount} → {self.goal.name}"
+
+
+class HouseholdList(models.Model):
+    """A named checklist that belongs to a household (group only)."""
+
+    household = models.ForeignKey(
+        Household,
+        on_delete=models.CASCADE,
+        related_name="lists",
+    )
+    name = models.CharField(max_length=80)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+    def clean(self):
+        super().clean()
+        if self.name:
+            self.name = self.name.strip()
+        if not self.name:
+            raise ValidationError({"name": "Name cannot be blank."})
+
+
+class HouseholdListItem(models.Model):
+    """A single entry inside a household list."""
+
+    list = models.ForeignKey(
+        HouseholdList,
+        on_delete=models.CASCADE,
+        related_name="items",
+    )
+    text = models.CharField(max_length=200)
+    is_done = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["is_done", "created_at"]
+
+    def __str__(self):
+        return self.text

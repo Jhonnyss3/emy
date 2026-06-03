@@ -68,5 +68,3 @@ não só por `request.user` — e continua sendo a barreira central e
   `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, `SECURE_HSTS_SECONDS`.
 - Antes de cada release: rodar `python manage.py check --deploy` e resolver
   os apontamentos.
-</content>
-</invoke>

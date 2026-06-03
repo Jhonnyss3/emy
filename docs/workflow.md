@@ -45,5 +45,3 @@ compilado em `theme/static/css/dist/`, e arquivos de IDE/OS.
 
 - Rodar `python manage.py check` (e `check --deploy` para produção) sem
   erros.
-</content>
-</invoke>

@@ -113,6 +113,68 @@ membership, criada junto com o grupo.
 
 - `Meta`: `UniqueConstraint(household, user)` (`unique_household_member`).
 
+## InvestmentGoal
+
+Objetivo de investimento com meta de valor, pessoal ou compartilhado em grupo.
+Vive num fluxo separado das transações.
+
+| Campo | Tipo | Observação |
+|---|---|---|
+| `user` | FK → `auth.User` | `on_delete=CASCADE`, `related_name="investment_goals"` (criador) |
+| `household` | FK → `Household` | `null=True, blank=True`, `on_delete=CASCADE`, `related_name="investment_goals"` — nulo = pessoal; preenchido = grupo |
+| `name` | CharField(80) | |
+| `target_amount` | DecimalField(12,2) | `MinValueValidator(0.01)` — meta |
+| `target_date` | DateField | prazo opcional (`null=True, blank=True`) |
+| `is_active` | Boolean | default `True` |
+| `created_at` | DateTimeField | `auto_now_add` |
+
+- Manager `InvestmentGoalQuerySet.in_scope(user, household)` (mesma lógica de Category/Transaction).
+- `@property invested` — soma dos `amount` dos aportes; `@property progress` —
+  `invested / target_amount * 100`, limitado a 100.
+- `clean()` trim do nome; `Meta.ordering = ["name"]`; `__str__` = name.
+
+## InvestmentContribution
+
+Aporte individual em um objetivo.
+
+| Campo | Tipo | Observação |
+|---|---|---|
+| `goal` | FK → `InvestmentGoal` | `on_delete=CASCADE`, `related_name="contributions"` |
+| `user` | FK → `auth.User` | `on_delete=CASCADE`, `related_name="contributions"` (quem aportou) |
+| `amount` | DecimalField(12,2) | `MinValueValidator(0.01)` |
+| `date` | DateField | |
+| `notes` | TextField | opcional (`blank=True`) |
+| `created_at` | DateTimeField | `auto_now_add` |
+
+- `Meta.ordering = ["-date", "-created_at"]`.
+- O escopo deriva do `goal`. No dashboard, os aportes do mês corrente no escopo
+  ativo são somados e **subtraídos do saldo** (entram como saída de caixa).
+
+## HouseholdList
+
+Lista nomeada (checklist) que pertence a um grupo — existe só em grupo.
+
+| Campo | Tipo | Observação |
+|---|---|---|
+| `household` | FK → `Household` | `on_delete=CASCADE`, `related_name="lists"` |
+| `name` | CharField(80) | |
+| `created_at` | DateTimeField | `auto_now_add` |
+
+- `clean()` trim do nome; `Meta.ordering = ["name"]`; `__str__` = name.
+
+## HouseholdListItem
+
+Item de uma lista de casa.
+
+| Campo | Tipo | Observação |
+|---|---|---|
+| `list` | FK → `HouseholdList` | `on_delete=CASCADE`, `related_name="items"` |
+| `text` | CharField(200) | |
+| `is_done` | Boolean | default `False` |
+| `created_at` | DateTimeField | `auto_now_add` |
+
+- `Meta.ordering = ["is_done", "created_at"]` (pendentes primeiro).
+
 ## Regras de integridade
 
 - `Category`: unicidade **por escopo** — `unique_personal_category`
@@ -129,6 +191,10 @@ membership, criada junto com o grupo.
 - `Profile.user`: `OneToOneField` — um perfil por usuário.
 - `HouseholdMembership`: `UniqueConstraint(household, user)` — uma membership
   por par usuário/grupo.
+- `InvestmentGoal.target_amount` / `InvestmentContribution.amount`:
+  `MinValueValidator(0.01)`.
+- `InvestmentGoal.household` anulável → nulo = pessoal, preenchido = grupo
+  (mesmo padrão de escopo de Category/Transaction).
 
 ## Decisões de design
 
@@ -161,5 +227,13 @@ membership, criada junto com o grupo.
   permitir regras de dono). O `created_by` em `CASCADE` é uma escolha de MVP:
   se o dono apagar a conta, o grupo some — aceitável enquanto não há tela de
   exclusão de grupo/conta.
-</content>
-</invoke>
+- **Investimentos como fluxo separado** — `InvestmentGoal`/`InvestmentContribution`
+  são models próprios (não `Transaction` com flag). O aporte NÃO vira uma
+  `Transaction` duplicada; em vez disso, o dashboard soma os aportes do mês no
+  escopo ativo e os subtrai do saldo. Assim a seção de investimentos é separada
+  (telas e lista próprias) e o aporte ainda reflete como saída de caixa, sem
+  duplicação nem alterar a obrigatoriedade de `category` em `Transaction`.
+- **Listas de casa só em grupo** — `HouseholdList` tem FK obrigatória para
+  `Household` (não há lista pessoal). As views exigem escopo de grupo ativo e
+  restringem o acesso às listas dos grupos do usuário
+  (`HouseholdList.objects.filter(household__in=Household.objects.for_user(user))`).
