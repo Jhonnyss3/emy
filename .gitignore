@@ -17,6 +17,7 @@ db.sqlite3-journal
 .env
 .env.*
 !.env.example
+!.env.docker.example
 
 # TailwindCSS (django-tailwind) — compiled CSS is a build artifact
 theme/static/css/dist/
