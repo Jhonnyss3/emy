@@ -1,0 +1,30 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+
+# Secrets / local env — never copy into the image
+.env
+.env.*
+
+# Local database
+db.sqlite3
+db.sqlite3-journal
+
+# Build artifacts (regenerated inside the image)
+staticfiles/
+theme/static/css/dist/
+
+# Tooling / docs / IDE
+.pytest_cache/
+docs/
+*.md
+.idea/
+.vscode/
+.DS_Store
