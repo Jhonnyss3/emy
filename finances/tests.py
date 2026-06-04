@@ -1,9 +1,14 @@
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 
 import pytest
 from django.core.exceptions import ValidationError
 from django.urls import reverse
+from django.utils import timezone
+
+
+def _next_month(ref):
+    return (ref.replace(day=28) + timedelta(days=7)).replace(day=1)
 
 from .forms import CategoryForm, RegistrationForm
 from .models import (
@@ -14,6 +19,7 @@ from .models import (
     InvestmentContribution,
     InvestmentGoal,
     Profile,
+    RecurringTransaction,
     Transaction,
 )
 
@@ -433,3 +439,196 @@ def test_login_lockout_after_failures(client, user):
         reverse("login"), {"username": "ana@test.com", "password": "pass-12345"}
     )
     assert resp.status_code == 429
+
+
+# --- Month navigation -------------------------------------------------------
+
+
+def test_dashboard_and_list_filter_by_month(client, user):
+    cat = Category.objects.create(user=user, name="Mercado", type="expense")
+    this_month = timezone.localdate().replace(day=10)
+    nxt = _next_month(this_month).replace(day=15)
+    Transaction.objects.create(
+        user=user, category=cat, description="Deste mês",
+        amount=Decimal("50"), date=this_month, type="expense",
+    )
+    Transaction.objects.create(
+        user=user, category=cat, description="Do mês que vem",
+        amount=Decimal("80"), date=nxt, type="expense",
+    )
+    client.force_login(user)
+
+    # default = current month
+    resp = client.get(reverse("finances:dashboard"))
+    assert resp.context["expense"] == Decimal("50")
+
+    # ?month= shows the future month
+    resp2 = client.get(
+        reverse("finances:dashboard"), {"month": nxt.strftime("%Y-%m")}
+    )
+    assert resp2.context["expense"] == Decimal("80")
+
+    # the list view filters by month too
+    resp3 = client.get(
+        reverse("finances:transaction_list"), {"month": nxt.strftime("%Y-%m")}
+    )
+    descriptions = [t.description for t in resp3.context["transactions"]]
+    assert descriptions == ["Do mês que vem"]
+
+
+# --- Installments -----------------------------------------------------------
+
+
+def test_installments_split_across_months(client, user):
+    cat = Category.objects.create(user=user, name="Eletro", type="expense")
+    client.force_login(user)
+    client.post(reverse("finances:transaction_create"), {
+        "description": "Geladeira", "amount": "1000.00", "date": "2026-06-15",
+        "type": "expense", "category": str(cat.pk),
+        "payment_method": "credit_card", "installments": "3",
+    })
+    txs = list(Transaction.objects.filter(user=user).order_by("date"))
+    assert len(txs) == 3
+    # last installment absorbs the rounding remainder
+    assert [t.amount for t in txs] == [
+        Decimal("333.33"), Decimal("333.33"), Decimal("333.34")
+    ]
+    assert [t.date.month for t in txs] == [6, 7, 8]
+    assert [t.installment_number for t in txs] == [1, 2, 3]
+    assert all(t.installment_total == 3 for t in txs)
+    assert len({t.installment_group for t in txs}) == 1
+    assert txs[0].installment_label == "1/3"
+
+
+def test_installments_single_is_plain(client, user):
+    cat = Category.objects.create(user=user, name="Mercado", type="expense")
+    client.force_login(user)
+    client.post(reverse("finances:transaction_create"), {
+        "description": "Pão", "amount": "10.00", "date": "2026-06-15",
+        "type": "expense", "category": str(cat.pk),
+        "payment_method": "cash", "installments": "1",
+    })
+    t = Transaction.objects.get(user=user)
+    assert t.installment_group is None
+    assert t.installment_label == ""
+
+
+def test_installments_insufficient_amount_rejected(client, user):
+    cat = Category.objects.create(user=user, name="Mercado", type="expense")
+    client.force_login(user)
+    resp = client.post(reverse("finances:transaction_create"), {
+        "description": "Bala", "amount": "0.02", "date": "2026-06-15",
+        "type": "expense", "category": str(cat.pk),
+        "payment_method": "cash", "installments": "5",
+    })
+    assert resp.status_code == 200
+    assert Transaction.objects.filter(user=user).count() == 0
+
+
+# --- Recurring (fixed bills) ------------------------------------------------
+
+
+def _make_bill(user, cat, **kw):
+    defaults = dict(
+        user=user, category=cat, description="Aluguel",
+        amount=Decimal("1500"), type="expense", start_date=date(2026, 6, 5),
+    )
+    defaults.update(kw)
+    return RecurringTransaction.objects.create(**defaults)
+
+
+def test_recurring_materializes_on_month_open(client, user):
+    cat = Category.objects.create(user=user, name="Moradia", type="expense")
+    bill = _make_bill(user, cat)
+    client.force_login(user)
+    client.get(reverse("finances:dashboard"), {"month": "2026-06"})
+    gen = Transaction.objects.filter(recurring_source=bill, date__month=6)
+    assert gen.count() == 1
+    assert gen.first().date == date(2026, 6, 5)
+    assert gen.first().amount == Decimal("1500")
+    # opening the same month again does not duplicate
+    client.get(reverse("finances:dashboard"), {"month": "2026-06"})
+    assert Transaction.objects.filter(recurring_source=bill, date__month=6).count() == 1
+
+
+def test_recurring_materializes_future_month(client, user):
+    cat = Category.objects.create(user=user, name="Moradia", type="expense")
+    bill = _make_bill(user, cat)
+    client.force_login(user)
+    client.get(reverse("finances:transaction_list"), {"month": "2026-09"})
+    assert Transaction.objects.filter(
+        recurring_source=bill, date=date(2026, 9, 5)
+    ).exists()
+
+
+def test_recurring_not_before_start(client, user):
+    cat = Category.objects.create(user=user, name="Moradia", type="expense")
+    bill = _make_bill(user, cat)
+    client.force_login(user)
+    client.get(reverse("finances:dashboard"), {"month": "2026-05"})
+    assert not Transaction.objects.filter(recurring_source=bill).exists()
+
+
+def test_recurring_inactive_not_generated(client, user):
+    cat = Category.objects.create(user=user, name="Moradia", type="expense")
+    bill = _make_bill(user, cat, is_active=False)
+    client.force_login(user)
+    client.get(reverse("finances:dashboard"), {"month": "2026-06"})
+    assert not Transaction.objects.filter(recurring_source=bill).exists()
+
+
+def test_recurring_create_view(client, user):
+    cat = Category.objects.create(user=user, name="Moradia", type="expense")
+    client.force_login(user)
+    client.post(reverse("finances:recurring_create"), {
+        "description": "Internet", "amount": "100.00", "type": "expense",
+        "category": str(cat.pk), "payment_method": "pix",
+        "start_date": "2026-06-10", "is_active": "on",
+    })
+    assert RecurringTransaction.objects.filter(
+        user=user, description="Internet"
+    ).exists()
+
+
+def test_category_delete_blocked_by_recurring(client, user):
+    cat = Category.objects.create(user=user, name="Moradia", type="expense")
+    _make_bill(user, cat)
+    client.force_login(user)
+    client.post(reverse("finances:category_delete", args=[cat.pk]))
+    # PROTECT: a category used by a fixed bill cannot be deleted
+    assert Category.objects.filter(pk=cat.pk).exists()
+
+
+def test_recurring_scope_isolation(user, other, household):
+    HouseholdMembership.objects.create(household=household, user=other)
+    cat_p = Category.objects.create(user=user, name="Pessoal", type="expense")
+    cat_g = Category.objects.create(
+        user=user, household=household, name="Casa", type="expense"
+    )
+    _make_bill(user, cat_p)
+    _make_bill(user, cat_g, household=household, description="Aluguel casa")
+    assert RecurringTransaction.objects.in_scope(user, None).count() == 1
+    assert RecurringTransaction.objects.in_scope(user, household).count() == 1
+    assert RecurringTransaction.objects.in_scope(other, None).count() == 0
+    assert RecurringTransaction.objects.in_scope(other, household).count() == 1
+
+
+# --- Forecast ---------------------------------------------------------------
+
+
+def test_forecast_projects_and_does_not_double_count(client, user):
+    cat = Category.objects.create(user=user, name="Moradia", type="expense")
+    today = timezone.localdate()
+    _make_bill(user, cat, amount=Decimal("1000"), start_date=today.replace(day=5))
+    client.force_login(user)
+    resp = client.get(reverse("finances:forecast"))
+    months = resp.context["months"]
+    assert len(months) == 6
+    assert months[0]["is_current"] is True
+    # the fixed bill is projected into the current and later months
+    assert months[0]["expense"] == Decimal("1000")
+    assert months[3]["expense"] == Decimal("1000")
+    # opening the current month materializes the bill; forecast must not double it
+    client.get(reverse("finances:dashboard"))
+    resp2 = client.get(reverse("finances:forecast"))
+    assert resp2.context["months"][0]["expense"] == Decimal("1000")

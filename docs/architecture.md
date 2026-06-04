@@ -76,15 +76,18 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a
 | `register` | `register` | Cadastro via `RegistrationForm` (e-mail); login automático; redireciona para `profile_edit`. |
 | `profile_edit` | `finances:profile_edit` | Cria/edita o `Profile` do usuário; é a tela aberta logo após o cadastro. |
 | `scope_switch` | `finances:scope_switch` | Troca o escopo ativo (pessoal ou grupo) na sessão. |
-| `dashboard` | `finances:dashboard` | Resumo do mês + 10 recentes, no escopo ativo. |
-| `transaction_list` | `finances:transaction_list` | Lista transações do escopo ativo; filtro por tipo via `?type=income\|expense`. |
+| `dashboard` | `finances:dashboard` | Resumo do mês selecionado (`?month=AAAA-MM`) + lançamentos do mês; materializa as contas fixas do mês. |
+| `forecast` | `finances:forecast` | Previsão dos próximos 6 meses (transações reais + contas fixas projetadas, sem dupla contagem). |
+| `transaction_list` | `finances:transaction_list` | Lista as transações do mês selecionado (`?month=`); filtro por tipo via `?type=income\|expense`; materializa as contas fixas do mês. |
 | `transaction_create` | `finances:transaction_create` | Cria transação no escopo ativo. |
 | `transaction_update` | `finances:transaction_update` | Edita transação dentro do escopo. |
 | `transaction_delete` | `finances:transaction_delete` | Exclui transação após confirmação via POST. |
 | `category_list` | `finances:category_list` | Lista categorias do escopo ativo. |
 | `category_create` | `finances:category_create` | Cria categoria; `user` e `household` atribuídos na view. |
 | `category_update` | `finances:category_update` | Edita categoria dentro do escopo. |
-| `category_delete` | `finances:category_delete` | Exclui categoria; bloqueia se houver transações vinculadas. |
+| `category_delete` | `finances:category_delete` | Exclui categoria; bloqueia se houver transações ou contas fixas vinculadas. |
+| `recurring_list` | `finances:recurring_list` | Lista as contas fixas do escopo ativo. |
+| `recurring_create/update/delete` | `finances:recurring_*` | CRUD de conta fixa; o create materializa o mês corrente. |
 | `household_list` | `finances:household_list` | Lista os grupos do usuário. |
 | `household_create` | `finances:household_create` | Cria grupo + membership do dono (atômico). |
 | `household_detail` | `finances:household_detail` | Membros do grupo; o dono adiciona/remove. |
@@ -110,6 +113,7 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a
 `finances/urls.py` (`app_name = "finances"`):
 - `""` → `dashboard`
 - `profile/` → `profile_edit`
+- `forecast/` → `forecast`
 - `scope/switch/` → `scope_switch`
 - `transactions/` → `transaction_list`
 - `transactions/new/` → `transaction_create`
@@ -119,6 +123,7 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a
 - `categories/new/` → `category_create`
 - `categories/<int:pk>/edit/` → `category_update`
 - `categories/<int:pk>/delete/` → `category_delete`
+- `recurring/`, `recurring/new/`, `recurring/<int:pk>/edit/`, `recurring/<int:pk>/delete/` → contas fixas (`recurring_*`)
 - `groups/` → `household_list`
 - `groups/new/` → `household_create`
 - `groups/<int:pk>/` → `household_detail`

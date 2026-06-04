@@ -124,6 +124,10 @@ usuários sobre a mesma carteira (conta compartilhada).
 | RF28 | O usuário pode registrar aportes em um objetivo e acompanhar o progresso (soma dos aportes vs meta). | Média |
 | RF29 | Os aportes do mês entram como saída de caixa no saldo do dashboard, mas a seção de investimentos é separada da lista de lançamentos. | Média |
 | RF30 | Em grupo, os membros podem criar listas nomeadas (checklists) com itens marcáveis como concluídos. | Média |
+| RF31 | O usuário pode navegar entre meses (incluindo futuros) no dashboard e na lista de lançamentos. | Alta |
+| RF32 | Ao lançar, o usuário pode parcelar a compra em N vezes; o sistema gera uma saída em cada mês (valor total dividido). | Alta |
+| RF33 | O usuário pode cadastrar contas fixas (recorrentes sem fim, ex.: aluguel) que aparecem automaticamente em cada mês até serem pausadas. | Alta |
+| RF34 | O sistema exibe uma previsão dos próximos meses, considerando parcelas e contas fixas. | Média |
 
 ### 6.1 Flowchart Mermaid — fluxos de UX
 

@@ -219,6 +219,20 @@ class Transaction(models.Model):
         default=PaymentMethod.CASH,
     )
     notes = models.TextField(blank=True)
+    # Installment plan: a purchase split across several months shares a group id.
+    installment_group = models.UUIDField(
+        null=True, blank=True, db_index=True, editable=False
+    )
+    installment_number = models.PositiveSmallIntegerField(null=True, blank=True)
+    installment_total = models.PositiveSmallIntegerField(null=True, blank=True)
+    # Set when this entry was generated from a fixed/recurring bill.
+    recurring_source = models.ForeignKey(
+        "RecurringTransaction",
+        on_delete=models.SET_NULL,
+        related_name="generated",
+        null=True,
+        blank=True,
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -236,6 +250,13 @@ class Transaction(models.Model):
         if self.type == TransactionType.EXPENSE:
             return -self.amount
         return self.amount
+
+    @property
+    def installment_label(self):
+        """Label like '2/12' for installment entries, empty otherwise."""
+        if self.installment_total and self.installment_total > 1:
+            return f"{self.installment_number}/{self.installment_total}"
+        return ""
 
     def clean(self):
         super().clean()
@@ -269,6 +290,92 @@ class Transaction(models.Model):
                             f"match transaction type '{self.get_type_display()}'."
                         )
                     }
+                )
+
+
+class RecurringTransactionQuerySet(models.QuerySet):
+    def in_scope(self, user, household):
+        """Fixed bills visible in the active scope (personal or a group)."""
+        if household is None:
+            return self.filter(user=user, household__isnull=True)
+        return self.filter(household=household)
+
+
+class RecurringTransaction(models.Model):
+    """A fixed, open-ended bill (e.g. rent) that recurs every month."""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="recurring_transactions",
+    )
+    household = models.ForeignKey(
+        Household,
+        on_delete=models.CASCADE,
+        related_name="recurring_transactions",
+        null=True,
+        blank=True,
+    )
+    category = models.ForeignKey(
+        Category,
+        on_delete=models.PROTECT,
+        related_name="recurring_transactions",
+    )
+    description = models.CharField(max_length=200)
+    amount = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        validators=[MinValueValidator(0.01)],
+    )
+    type = models.CharField(max_length=10, choices=TransactionType.choices)
+    payment_method = models.CharField(
+        max_length=15,
+        choices=PaymentMethod.choices,
+        default=PaymentMethod.CASH,
+    )
+    start_date = models.DateField()
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = RecurringTransactionQuerySet.as_manager()
+
+    class Meta:
+        ordering = ["description"]
+
+    def __str__(self):
+        return f"{self.description} (fixo)"
+
+    @property
+    def day(self):
+        """Day of the month the bill falls on."""
+        return self.start_date.day
+
+    def clean(self):
+        super().clean()
+        if self.description:
+            self.description = self.description.strip()
+
+        # The category must belong to the same scope as the bill.
+        if self.category_id:
+            if self.household_id:
+                if self.category.household_id != self.household_id:
+                    raise ValidationError(
+                        {"category": "Category must belong to the same group."}
+                    )
+            elif self.user_id:
+                if (
+                    self.category.household_id is not None
+                    or self.category.user_id != self.user_id
+                ):
+                    raise ValidationError(
+                        {"category": "Category must belong to the same user."}
+                    )
+
+        # The category type must match the bill type.
+        if self.category_id and self.type:
+            if self.category.type != self.type:
+                raise ValidationError(
+                    {"category": "Category type does not match the bill type."}
                 )
 
 

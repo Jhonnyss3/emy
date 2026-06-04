@@ -7,6 +7,7 @@ app_name = "finances"
 urlpatterns = [
     path("", views.dashboard, name="dashboard"),
     path("profile/", views.profile_edit, name="profile_edit"),
+    path("forecast/", views.forecast, name="forecast"),
     path("scope/switch/", views.scope_switch, name="scope_switch"),
     path("groups/", views.household_list, name="household_list"),
     path("groups/new/", views.household_create, name="household_create"),
@@ -44,6 +45,18 @@ urlpatterns = [
         "categories/<int:pk>/delete/",
         views.category_delete,
         name="category_delete",
+    ),
+    path("recurring/", views.recurring_list, name="recurring_list"),
+    path("recurring/new/", views.recurring_create, name="recurring_create"),
+    path(
+        "recurring/<int:pk>/edit/",
+        views.recurring_update,
+        name="recurring_update",
+    ),
+    path(
+        "recurring/<int:pk>/delete/",
+        views.recurring_delete,
+        name="recurring_delete",
     ),
     path("investments/", views.investment_list, name="investment_list"),
     path("investments/new/", views.investment_create, name="investment_create"),
