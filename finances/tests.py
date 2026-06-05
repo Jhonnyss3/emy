@@ -580,6 +580,18 @@ def test_dashboard_and_list_filter_by_month(client, user):
 # --- Installments -----------------------------------------------------------
 
 
+def test_transaction_form_renders_category_dropdown_with_types(client, user):
+    Category.objects.create(user=user, name="Mercado", type="expense")
+    Category.objects.create(user=user, name="Salário", type="income")
+    client.force_login(user)
+    html = client.get(reverse("finances:transaction_create")).content.decode()
+    assert "data-category-select" in html
+    # each option carries its type so the JS can filter by Despesa/Receita
+    assert 'data-category-option' in html
+    assert 'data-type="expense"' in html
+    assert 'data-type="income"' in html
+
+
 def test_installments_split_across_months(client, user):
     cat = Category.objects.create(user=user, name="Eletro", type="expense")
     client.force_login(user)

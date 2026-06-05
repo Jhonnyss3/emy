@@ -1,0 +1,27 @@
+<div class="relative mt-2" data-category-select>
+    <input type="hidden" name="category" value="{{ form.category.value|default:'' }}" data-category-input>
+    <button type="button" data-category-toggle aria-haspopup="listbox" aria-expanded="false"
+            class="flex w-full items-center justify-between gap-2 rounded-2xl bg-white/80 px-4 py-3 text-sm text-emy-ink ring-1 ring-emy-line transition focus:bg-emy-surface focus:outline-none focus:ring-2 focus:ring-emy-pink-400">
+        <span class="flex min-w-0 items-center gap-2" data-category-label>
+            <span class="text-emy-ink-mute">Selecione a categoria</span>
+        </span>
+        <svg class="h-4 w-4 shrink-0 text-emy-ink-mute transition" viewBox="0 0 20 20" fill="currentColor" data-category-chevron>
+            <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.17l3.71-3.94a.75.75 0 1 1 1.08 1.04l-4.25 4.5a.75.75 0 0 1-1.08 0l-4.25-4.5a.75.75 0 0 1 .02-1.06Z" clip-rule="evenodd"/>
+        </svg>
+    </button>
+    <div class="absolute z-20 mt-2 hidden max-h-60 w-full overflow-y-auto rounded-2xl bg-emy-surface p-1.5 shadow-card ring-1 ring-emy-line" data-category-panel role="listbox">
+        {% for cat in form.category.field.queryset %}
+            <button type="button" role="option" data-category-option
+                    data-value="{{ cat.pk }}" data-type="{{ cat.type }}" data-color="{{ cat.color }}" data-name="{{ cat.name }}"
+                    class="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-emy-ink-soft transition hover:bg-emy-bg">
+                <span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background:{{ cat.color }}"></span>
+                <span class="truncate">{{ cat.name }}</span>
+            </button>
+        {% empty %}
+            <p class="px-3 py-2 text-sm text-emy-ink-soft">
+                Nenhuma categoria ativa.
+                <a href="{% url 'finances:category_create' %}" class="font-bold text-emy-pink-600 hover:underline">Criar uma</a>
+            </p>
+        {% endfor %}
+    </div>
+</div>

@@ -4,6 +4,7 @@ import { initPasswordToggle } from "./modules/passwordToggle.js";
 import { initColorSwatches } from "./modules/colorSwatches.js";
 import { initMoneyMask } from "./modules/moneyMask.js";
 import { initCategoryDonut } from "./modules/categoryDonut.js";
+import { initCategorySelect } from "./modules/categorySelect.js";
 
 function init() {
     initPageLoader();
@@ -12,6 +13,7 @@ function init() {
     initColorSwatches();
     initMoneyMask();
     initCategoryDonut();
+    initCategorySelect();
 }
 
 if (document.readyState === "loading") {

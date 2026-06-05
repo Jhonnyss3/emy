@@ -61,22 +61,7 @@
 
     <div class="p-8 sm:p-10">
         <p class="text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Categoria</p>
-        <div class="mt-2 flex flex-wrap gap-2">
-            {% for cat in form.category.field.queryset %}
-                <label class="cursor-pointer">
-                    <input type="radio" name="category" value="{{ cat.pk }}" class="peer sr-only"
-                           {% if form.category.value|stringformat:'s' == cat.pk|stringformat:'s' %}checked{% endif %}>
-                    <span class="flex items-center gap-1.5 rounded-full bg-emy-bg px-3 py-1.5 text-sm font-semibold text-emy-ink-soft transition peer-checked:bg-gradient-to-br peer-checked:from-emy-pink-500 peer-checked:to-emy-purple-500 peer-checked:text-white">
-                        <span class="h-2 w-2 rounded-full" style="background:{{ cat.color }}"></span>{{ cat.name }}
-                    </span>
-                </label>
-            {% empty %}
-                <p class="text-sm text-emy-ink-soft">
-                    Nenhuma categoria ativa.
-                    <a href="{% url 'finances:category_create' %}" class="font-bold text-emy-pink-600 hover:underline">Criar uma</a>
-                </p>
-            {% endfor %}
-        </div>
+        {% include "finances/_category_select.html" %}
         {% for error in form.category.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
 
         <div class="mt-6 grid grid-cols-2 gap-4">
