@@ -10,6 +10,8 @@
 | Estilização | TailwindCSS v4 via `django-tailwind` em modo standalone |
 | Autenticação | `django.contrib.auth` com `User` nativo |
 | Banco (dev) | SQLite 3 |
+| Banco (produção) | PostgreSQL (via `DATABASE_URL` + `dj-database-url`) |
+| Servidor (produção) | Gunicorn + WhiteNoise (estáticos), em container Docker no Railway |
 | Admin | `django.contrib.admin` |
 
 ## Estrutura de pastas
@@ -30,6 +32,13 @@ emy/
 │   └── templates/        # base.html, finances/, registration/
 ├── theme/                # App do django-tailwind (fonte + build do CSS)
 ├── docs/                 # Esta documentação
+├── Dockerfile            # Imagem multi-stage (builder + runtime non-root)
+├── entrypoint.sh         # Roda migrate no start e entrega para o gunicorn (CMD)
+├── docker-compose.yml    # Stack local: web (gunicorn) + db (PostgreSQL)
+├── railway.json          # Config de build/healthcheck do Railway
+├── .dockerignore
+├── .env.example          # Modelo do .env (desenvolvimento)
+├── .env.docker.example   # Modelo do .env.docker (stack docker-compose)
 ├── manage.py
 ├── requirements.txt
 ├── db.sqlite3
@@ -90,7 +99,9 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a
 | `recurring_create/update/delete` | `finances:recurring_*` | CRUD de conta fixa; o create materializa o mês corrente. |
 | `household_list` | `finances:household_list` | Lista os grupos do usuário. |
 | `household_create` | `finances:household_create` | Cria grupo + membership do dono (atômico). |
-| `household_detail` | `finances:household_detail` | Membros do grupo; o dono adiciona/remove. |
+| `household_detail` | `finances:household_detail` | Membros do grupo; o dono edita/exclui o grupo e adiciona/remove. |
+| `household_update` | `finances:household_update` | Renomeia o grupo (só o dono). |
+| `household_delete` | `finances:household_delete` | Exclui o grupo após confirmação via POST (só o dono); reseta o escopo ativo se for o do grupo. |
 | `member_add` | `finances:member_add` | Adiciona membro por e-mail (só o dono). |
 | `member_remove` | `finances:member_remove` | Remove membro (só o dono; nunca o dono). |
 | `investment_list` | `finances:investment_list` | Objetivos do escopo + total investido. |
@@ -127,6 +138,8 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a
 - `groups/` → `household_list`
 - `groups/new/` → `household_create`
 - `groups/<int:pk>/` → `household_detail`
+- `groups/<int:pk>/edit/` → `household_update`
+- `groups/<int:pk>/delete/` → `household_delete`
 - `groups/<int:pk>/members/add/` → `member_add`
 - `groups/<int:pk>/members/<int:user_id>/remove/` → `member_remove`
 - `investments/`, `investments/new/`, `investments/<int:pk>/`,
@@ -155,7 +168,11 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a
 ## Settings relevantes (`core/settings.py`)
 
 - `INSTALLED_APPS` inclui `finances`, `tailwind`, `theme` e `axes`.
-- `MIDDLEWARE` inclui `finances.middleware.ProfileCompletionMiddleware`, logo após o `AuthenticationMiddleware` — força usuário autenticado sem `Profile` a completar o perfil — e `axes.middleware.AxesMiddleware` por último.
+- `MIDDLEWARE` inclui `whitenoise.middleware.WhiteNoiseMiddleware` logo após o
+  `SecurityMiddleware` (serve os estáticos em produção),
+  `finances.middleware.ProfileCompletionMiddleware`, logo após o
+  `AuthenticationMiddleware` — força usuário autenticado sem `Profile` a
+  completar o perfil — e `axes.middleware.AxesMiddleware` por último.
 - `AUTHENTICATION_BACKENDS`: `axes.backends.AxesStandaloneBackend` (primeiro) + `django.contrib.auth.backends.ModelBackend`.
 - `django-axes`: `AXES_FAILURE_LIMIT = 5`, `AXES_COOLOFF_TIME = 1` (h), `AXES_LOCKOUT_PARAMETERS = [["ip_address", "username"]]`, `AXES_RESET_ON_SUCCESS = True` — ver [security.md](security.md).
 - `TAILWIND_APP_NAME = 'theme'`.
@@ -163,7 +180,17 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a
 - `AUTH_PASSWORD_VALIDATORS` com a configuração padrão do Django.
 - Redirecionamentos de autenticação: `LOGIN_URL = 'login'`,
   `LOGIN_REDIRECT_URL = 'finances:dashboard'`, `LOGOUT_REDIRECT_URL = 'login'`.
-- Banco: SQLite em `BASE_DIR / 'db.sqlite3'`.
+- Banco: `dj_database_url.config()` lê `DATABASE_URL` (PostgreSQL em
+  Docker/Railway) e cai no SQLite local (`BASE_DIR / 'db.sqlite3'`) quando a
+  variável não está definida. Usa `conn_max_age=600` e `conn_health_checks`.
+- Estáticos: `STORAGES['staticfiles']` usa
+  `whitenoise.storage.CompressedManifestStaticFilesStorage` (comprime e versiona
+  com hash para cache longo). `STATIC_ROOT = BASE_DIR / 'staticfiles'`. O
+  `collectstatic` roda no build da imagem Docker.
 - `SECRET_KEY`, `DEBUG` e `ALLOWED_HOSTS` vêm de variáveis de ambiente,
-  carregadas de um `.env` na raiz pelo `python-dotenv`. Bloco `if not DEBUG:`
-  ativa o hardening de produção — ver [security.md](security.md).
+  carregadas de um `.env` na raiz pelo `python-dotenv`. `CSRF_TRUSTED_ORIGINS`
+  também vem do ambiente. No Railway, o `settings.py` lê `RAILWAY_PUBLIC_DOMAIN`
+  e o anexa a `ALLOWED_HOSTS`/`CSRF_TRUSTED_ORIGINS`; quando detecta o ambiente
+  Railway (`RAILWAY_ENVIRONMENT`), adiciona `healthcheck.railway.app` ao
+  `ALLOWED_HOSTS` para o healthcheck passar. Bloco `if not DEBUG:` ativa o
+  hardening de produção — ver [security.md](security.md).

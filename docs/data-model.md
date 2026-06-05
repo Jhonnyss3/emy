@@ -255,9 +255,10 @@ Item de uma lista de casa.
   [architecture.md](architecture.md)).
 - **`Household` separado de `User`** — o grupo é uma entidade própria com
   membros via `HouseholdMembership` (M2M explícita, para guardar `joined_at` e
-  permitir regras de dono). O `created_by` em `CASCADE` é uma escolha de MVP:
-  se o dono apagar a conta, o grupo some — aceitável enquanto não há tela de
-  exclusão de grupo/conta.
+  permitir regras de dono). O dono pode renomear (`household_update`) e excluir
+  (`household_delete`) o grupo; a exclusão é `CASCADE` e apaga todos os dados do
+  grupo. O `created_by` em `CASCADE` é uma escolha de MVP: se o dono apagar a
+  conta, o grupo some — aceitável enquanto não há tela de exclusão de conta.
 - **Investimentos como fluxo separado** — `InvestmentGoal`/`InvestmentContribution`
   são models próprios (não `Transaction` com flag). O aporte NÃO vira uma
   `Transaction` duplicada; em vez disso, o dashboard soma os aportes do mês no

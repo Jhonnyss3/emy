@@ -13,7 +13,11 @@
   Emy (ver abaixo) e um `@layer utilities` com a utility `.no-scrollbar`
   (esconde a barra de rolagem mantendo o scroll — usada no app shell).
 - CSS compilado: `theme/static/css/dist/styles.css` — artefato de build, está
-  no `.gitignore`; o build precisa rodar no deploy.
+  no `.gitignore`; o build precisa rodar no deploy. Na imagem Docker o
+  `tailwind build` roda antes do `collectstatic`. Em produção os estáticos são
+  servidos pelo **WhiteNoise** (`CompressedManifestStaticFilesStorage`), que
+  comprime e versiona com hash; por isso o `collectstatic` é obrigatório no
+  build e os templates referenciam o CSS pelo manifest.
 - Settings: `INSTALLED_APPS` inclui `tailwind` e `theme`;
   `TAILWIND_APP_NAME = 'theme'`.
 - `finances/templates/base.html` carrega as fontes do Google (Plus Jakarta
@@ -92,8 +96,8 @@ pelo app `finances`, que tem o seu próprio `base.html`.
 | `base.html` | App shell: header (logo + seletor de escopo em dropdown + usuário/Sair), `main` rolável sem barra com conteúdo centralizado, nav inferior de ícones (mobile e desktop), barra de loading e bloco de mensagens. Ver seção **Layout / app shell**. |
 | `finances/scope_switch.html` | Escolha do escopo ativo (Pessoal ou um grupo) + link "Gerenciar grupos". |
 | `finances/household_list.html` | Lista dos grupos do usuário + botão "Novo grupo". |
-| `finances/household_form.html` | Criação de grupo (nome). |
-| `finances/household_detail.html` | Membros do grupo; o dono adiciona membro por e-mail e remove membros. |
+| `finances/household_form.html` | Criação/edição de grupo (nome); rótulo do botão via `submit_label`. |
+| `finances/household_detail.html` | Membros do grupo; o dono edita/exclui o grupo (ações no topo), adiciona membro por e-mail e remove membros. |
 | `finances/dashboard.html` | Cabeçalho (saudação + navegação por mês + "+ Lançar"), linha de 4 cards de stat (Saldo destaque / Entrou / Saiu / Investido) do mês selecionado e área inferior com lançamentos do mês (selo "2/12" nas parcelas) + card "Listas da casa" (em grupo). Layout 50/50 no desktop. |
 | `finances/forecast.html` | Previsão dos próximos 6 meses em cards (saldo previsto + entrou/saiu); cada card abre o mês no dashboard; mês atual em gradiente. |
 | `finances/transaction_list.html` | Navegação por mês + pills de filtro por tipo (preservam o mês) + atalho "Contas fixas" + lista de transações (selo "2/12" nas parcelas). |
@@ -109,7 +113,7 @@ pelo app `finances`, que tem o seu próprio `base.html`.
 | `finances/list_index.html` | Listas de casa do grupo + botão "Nova lista". |
 | `finances/list_form.html` | Criação de lista (nome). |
 | `finances/list_detail.html` | Itens da lista com checkbox (toggle via POST) + form para adicionar item. |
-| `finances/confirm_delete.html` | Confirmação de exclusão (reusado por transação, categoria, objetivo e lista). |
+| `finances/confirm_delete.html` | Confirmação de exclusão (reusado por transação, categoria, objetivo, lista e grupo; grupo mostra aviso de exclusão em cascata). |
 | `registration/login.html` | Tela de login por e-mail (card dividido com painel de gradiente; o campo mantém `name="username"`, exibido como "E-mail"). |
 | `registration/register.html` | Tela de cadastro por e-mail (mesmo padrão do login; campo `email`). |
 

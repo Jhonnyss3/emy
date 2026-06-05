@@ -63,7 +63,7 @@ Ao adicionar ou editar funcionalidades em qualquer app, seguir sempre esta ordem
 - **Validar e tipar todo input** via `Form`/`ModelForm` antes de tocar no banco. Não construir objetos direto de `request.POST`.
 - **Uploads** (quando houver): restringir extensão/tamanho, nunca servir arquivo de usuário como executável, e guardar fora do diretório de código.
 - **Não logar dados sensíveis** (senhas, tokens, PII desnecessária).
-- Em produção: HTTPS obrigatório. O `settings.py` tem um bloco `if not DEBUG:` que ativa automaticamente `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, `SECURE_HSTS_SECONDS` (configurável via env, default 1 ano) + `INCLUDE_SUBDOMAINS`/`PRELOAD` e `SECURE_PROXY_SSL_HEADER` (para o Nginx). Em desenvolvimento (`DEBUG=True`) o bloco fica inerte.
+- Em produção: HTTPS obrigatório. O `settings.py` tem um bloco `if not DEBUG:` que ativa automaticamente `SECURE_SSL_REDIRECT` (configurável via env), `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, `SECURE_HSTS_SECONDS` (configurável via env, default 1 ano) + `INCLUDE_SUBDOMAINS`/`PRELOAD` e `SECURE_PROXY_SSL_HEADER` (confia no `X-Forwarded-Proto` do proxy que termina o TLS — o edge do Railway). Em desenvolvimento (`DEBUG=True`) o bloco fica inerte. No Railway o TLS é terminado no edge e o healthcheck bate por HTTP interno, então `SECURE_SSL_REDIRECT` é definido como `False` por env (senão o healthcheck toma 302). Ver seção **Deploy**.
 - Antes de cada release: rodar `python manage.py check --deploy` e resolver os apontamentos (hoje retorna 0 com `DEBUG=False` + `ALLOWED_HOSTS` preenchido).
 
 ---
@@ -109,6 +109,17 @@ Ao adicionar ou editar funcionalidades em qualquer app, seguir sempre esta ordem
 
 ---
 
+## Deploy
+
+- **Produção no Railway**, a partir do `Dockerfile` (multi-stage: builder com venv + runtime mínimo rodando como usuário **não-root**). `railway.json` define o builder (`DOCKERFILE`) e o healthcheck (`/accounts/login/`). Push na branch `main` do GitHub dispara o rebuild.
+- O build da imagem roda `tailwind build` e depois `collectstatic` (com um `SECRET_KEY` descartável só para o settings importar durante o build). O `entrypoint.sh` roda `migrate --noinput` no start e então entrega ao `CMD` (gunicorn). Não rodar `migrate` manualmente no deploy.
+- Estáticos servidos por **WhiteNoise**; banco **PostgreSQL** via `DATABASE_URL`; servidor **Gunicorn** (porta de `${PORT}`).
+- **Variáveis no painel do Railway** (serviço web): `SECRET_KEY`, `DEBUG=False`, `DATABASE_URL`, `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`, `SECURE_SSL_REDIRECT=False`, `PORT`. O healthcheck do Railway usa `Host: healthcheck.railway.app` (já tratado no `settings.py`). Detalhes em `docs/security.md` e `docs/getting-started.md`.
+- **Stack local com Docker:** `docker-compose.yml` sobe `web` (gunicorn) + `db` (PostgreSQL); variáveis em `.env.docker` (modelo `.env.docker.example`). `docker compose up --build`.
+- O **login automático pós-cadastro** (`register`) precisa do backend explícito (`login(request, user, backend="django.contrib.auth.backends.ModelBackend")`) porque há múltiplos backends (`django-axes`) — sem ele, 500.
+
+---
+
 ## Visão Geral do Projeto
 
 **Finances** é uma aplicação web de finanças pessoais. O usuário registra receitas e despesas, organiza-as em categorias customizáveis e acompanha o resultado do mês em um dashboard. Cada conta tem suas finanças pessoais privadas e pode participar de **grupos** (`Household`) — espaços compartilhados onde os membros lançam e acompanham contas em conjunto (ex.: a conta da casa de um casal). Há ainda **investimentos com objetivos** (pessoal e grupo, fluxo separado do caixa) e **listas de casa** (checklists compartilhadas, só em grupo). O cadastro e o login são por **e-mail**.
@@ -116,11 +127,12 @@ Ao adicionar ou editar funcionalidades em qualquer app, seguir sempre esta ordem
 **Stack:**
 - Python 3.14 / Django 6.0.5
 - SQLite (desenvolvimento) — `db.sqlite3`
-- PostgreSQL (produção, futuro — mesmo ORM, sem mudança de modelo)
+- PostgreSQL (produção — via `DATABASE_URL` + `dj-database-url`; mesmo ORM, sem mudança de modelo)
 - Frontend: Django Template Language (sem framework JS separado)
 - Estilização: TailwindCSS v4 via `django-tailwind` no **modo standalone** (sem Node.js — ver seção Frontend / TailwindCSS)
 - Autenticação: `django.contrib.auth` com `User` nativo
 - Admin: `django.contrib.admin`
+- Produção: containerizada (`Dockerfile` multi-stage), servida por **Gunicorn** com **WhiteNoise** para os estáticos, deploy no **Railway** (ver seção Deploy)
 
 **Como rodar localmente:**
 ```bash
@@ -133,9 +145,11 @@ python manage.py runserver        # inicia o servidor em localhost:8000
 
 Durante o desenvolvimento de UI, manter `python manage.py tailwind start` rodando em outro terminal — recompila o CSS automaticamente a cada alteração de template.
 
-Dependências em `requirements.txt` (Django, asgiref, sqlparse, django-tailwind, pytailwindcss, python-dotenv, django-axes, pytest, pytest-django).
+Dependências em `requirements.txt` (Django, asgiref, sqlparse, django-tailwind, pytailwindcss, python-dotenv, django-axes, pytest, pytest-django, e as de produção: gunicorn, whitenoise, psycopg[binary], dj-database-url).
 
-As variáveis sensíveis (`SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS`) ficam num `.env` na raiz (não versionado), carregado pelo `python-dotenv`. Copie o `.env.example` para `.env` e preencha o `SECRET_KEY` antes de rodar.
+As variáveis sensíveis (`SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`, `DATABASE_URL`) ficam num `.env` na raiz (não versionado), carregado pelo `python-dotenv`. Copie o `.env.example` para `.env` e preencha o `SECRET_KEY` antes de rodar. Sem `DATABASE_URL`, usa o SQLite local.
+
+**Rodar com Docker / deploy:** o projeto é containerizado e roda em produção no Railway. Ver a seção **Deploy** e `docs/getting-started.md`.
 
 **Estrutura de pastas:**
 ```
@@ -155,6 +169,13 @@ emy/
 │   ├── static_src/src/styles.css   # fonte do Tailwind (@import + @source)
 │   └── static/css/dist/styles.css  # CSS compilado (artefato de build)
 ├── docs/                 # Documentação de guidelines e padrões (índice em docs/README.md)
+├── Dockerfile            # Imagem multi-stage (builder + runtime non-root)
+├── entrypoint.sh         # Roda migrate no start e entrega para o gunicorn (CMD)
+├── docker-compose.yml    # Stack local: web (gunicorn) + db (PostgreSQL)
+├── railway.json          # Config de build/healthcheck do Railway
+├── .dockerignore
+├── .env.example          # Modelo do .env (desenvolvimento)
+├── .env.docker.example   # Modelo do .env.docker (stack docker-compose)
 ├── manage.py
 ├── requirements.txt
 ├── db.sqlite3
@@ -181,7 +202,7 @@ Autenticação usa o `User` nativo de `django.contrib.auth` — não há app `ac
 - **TailwindCSS v4 via `django-tailwind` no modo standalone** — não há Node.js nem `npm` no projeto. O `pytailwindcss` baixa o binário standalone do Tailwind CLI; o `django-tailwind` o orquestra.
 - O app `theme` foi criado por `python manage.py tailwind init` (template "Tailwind v4 Standalone").
 - Fonte do CSS: `theme/static_src/src/styles.css` — contém `@import "tailwindcss"`, a diretiva `@source` que faz o Tailwind escanear todos os `.html/.py/.js` do projeto, um bloco `@theme` com os **tokens de design Emy**: cores `emy-*` (`emy-bg`, `emy-ink`, `emy-pink-*`, `emy-purple-*`, `emy-good`, `emy-bad` etc.) e fontes `font-sans` (Plus Jakarta Sans), `font-serif` (Instrument Serif), `font-script` (Caveat), e um `@layer utilities` com `.no-scrollbar` (usada no app shell).
-- CSS compilado: `theme/static/css/dist/styles.css` — **artefato de build** (no `.gitignore`); o build precisa rodar no deploy. **Recompilar com `python manage.py tailwind build` sempre que mexer em template ou em `styles.css`.**
+- CSS compilado: `theme/static/css/dist/styles.css` — **artefato de build** (no `.gitignore`); o build precisa rodar no deploy. **Recompilar com `python manage.py tailwind build` sempre que mexer em template ou em `styles.css`.** Em produção os estáticos são servidos pelo **WhiteNoise** (`CompressedManifestStaticFilesStorage`); a imagem Docker roda `tailwind build` seguido de `collectstatic` no build, e os templates referenciam o CSS pelo manifest.
 - Settings: `INSTALLED_APPS` inclui `tailwind` e `theme`; `TAILWIND_APP_NAME = 'theme'`.
 - `finances/templates/base.html` carrega as fontes do Google (Plus Jakarta Sans, Instrument Serif, Caveat) e o CSS via `{% load tailwind_tags %}` + `{% tailwind_css %}` no `<head>`.
 - Comandos: `python manage.py tailwind build` (build único) e `python manage.py tailwind start` (modo watch no desenvolvimento).
@@ -382,7 +403,9 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a �
 | `recurring_create/update/delete` | `finances:recurring_*` | CRUD de conta fixa (dentro do escopo); o create materializa o mês corrente. |
 | `household_list` | `finances:household_list` | Lista os grupos do usuário. |
 | `household_create` | `finances:household_create` | Cria grupo + membership do dono (atômico). |
-| `household_detail` | `finances:household_detail` | Membros do grupo; o dono adiciona/remove. |
+| `household_detail` | `finances:household_detail` | Membros do grupo; o dono edita/exclui o grupo e adiciona/remove membros. |
+| `household_update` | `finances:household_update` | Renomeia o grupo (só o dono). |
+| `household_delete` | `finances:household_delete` | Exclui o grupo após confirmação via POST (só o dono); `CASCADE` apaga os dados do grupo e reseta o escopo ativo na sessão. |
 | `member_add` | `finances:member_add` | Adiciona membro por e-mail (só o dono). |
 | `member_remove` | `finances:member_remove` | Remove membro (só o dono; nunca o dono). |
 | `investment_list` | `finances:investment_list` | Objetivos do escopo + total investido. |
@@ -425,6 +448,8 @@ Feedback de sucesso/erro é dado via `django.contrib.messages` após cada ação
 - `groups/` → `household_list`
 - `groups/new/` → `household_create`
 - `groups/<int:pk>/` → `household_detail`
+- `groups/<int:pk>/edit/` → `household_update`
+- `groups/<int:pk>/delete/` → `household_delete`
 - `groups/<int:pk>/members/add/` → `member_add`
 - `groups/<int:pk>/members/<int:user_id>/remove/` → `member_remove`
 - `investments/`, `investments/new/`, `investments/<int:pk>/`, `investments/<int:pk>/edit/`, `investments/<int:pk>/delete/`, `investments/<int:pk>/contributions/add/`, `investments/<int:pk>/contributions/<int:contrib_pk>/delete/`
@@ -441,8 +466,8 @@ Todos os templates abaixo já estão na identidade visual Emy/Petal (ver seção
 - `base.html` — **app shell**: `<body>` em `h-[100dvh] flex flex-col overflow-hidden` (a página nunca rola) e `<main>` como única área rolável (`overflow-y-auto no-scrollbar`, conteúdo centralizado por `my-auto`). Header (logo + selo "Beta V0.1" + **seletor de escopo em dropdown** + usuário/Sair); nav inferior flutuante de **ícones** (Início / Lançamentos / **Previsão** / Investir / Categorias / `+`, item ativo via `request.resolver_match`, rótulo só a partir de `sm:`); barra de loading no topo (disparada por cliques/submits); bloco de mensagens. O seletor de escopo é um `<details>` com Pessoal + grupos (`user_households`) + "Criar novo grupo". Desktop usa layout 50/50 (ver Decisões). Estilização 100% Tailwind, sem `<style>` inline.
 - `finances/scope_switch.html` — escolha do escopo ativo (Pessoal ou um grupo) + link "Gerenciar grupos".
 - `finances/household_list.html` — lista de grupos + "Novo grupo".
-- `finances/household_form.html` — criação de grupo (nome).
-- `finances/household_detail.html` — membros do grupo; o dono adiciona membro por e-mail e remove membros.
+- `finances/household_form.html` — criação/edição de grupo (nome); o rótulo do botão vem de `submit_label` (default "Criar grupo").
+- `finances/household_detail.html` — membros do grupo; o dono edita/exclui o grupo (ações no topo), adiciona membro por e-mail e remove membros. A exclusão reusa `confirm_delete.html`.
 - `finances/dashboard.html` — saudação (usa `first_name`), **navegação por mês** (setas ‹ ›, atalho "Hoje"), card de saldo com gradiente (saldo/entrou/saiu/investido) + atalho "Listas da casa" (só em escopo de grupo) + lançamentos do mês selecionado (com selo "2/12" nas parcelas).
 - `finances/forecast.html` — previsão dos próximos 6 meses em cards (saldo previsto + entrou/saiu); cada card abre aquele mês no dashboard. Mês atual destacado em gradiente.
 - `finances/transaction_list.html` — navegação por mês + pills de filtro por tipo (preservam o mês) + atalho "Contas fixas" + lista de transações (selo "2/12" nas parcelas).
@@ -458,7 +483,7 @@ Todos os templates abaixo já estão na identidade visual Emy/Petal (ver seção
 - `finances/list_index.html` — listas de casa do grupo + "Nova lista".
 - `finances/list_form.html` — criação de lista (nome).
 - `finances/list_detail.html` — itens com checkbox (toggle via POST) + form para adicionar item.
-- `finances/confirm_delete.html` — confirmação de exclusão (reusado por transação, categoria, objetivo e lista; título derivado de `object._meta.model_name`).
+- `finances/confirm_delete.html` — confirmação de exclusão (reusado por transação, categoria, objetivo, lista e grupo; título derivado de `object._meta.model_name`). Para `household` mostra um aviso extra de que a exclusão apaga os dados do grupo para todos os membros.
 - `registration/login.html` — tela de login por e-mail (card dividido; campo mantém `name="username"`, exibido como "E-mail").
 - `registration/register.html` — tela de cadastro por e-mail (mesmo padrão do login; campo `email`).
 
@@ -499,15 +524,17 @@ Todos os templates abaixo já estão na identidade visual Emy/Petal (ver seção
 ## Settings relevantes (`core/settings.py`)
 
 - `INSTALLED_APPS` inclui `finances`, `tailwind`, `theme` e `axes`.
-- `MIDDLEWARE` inclui `finances.middleware.ProfileCompletionMiddleware` (logo após o `AuthenticationMiddleware`) e `axes.middleware.AxesMiddleware` (por último).
+- `MIDDLEWARE` inclui `whitenoise.middleware.WhiteNoiseMiddleware` (logo após o `SecurityMiddleware`, serve os estáticos em produção), `finances.middleware.ProfileCompletionMiddleware` (logo após o `AuthenticationMiddleware`) e `axes.middleware.AxesMiddleware` (por último).
 - `AUTHENTICATION_BACKENDS` = `axes.backends.AxesStandaloneBackend` (primeiro) + `django.contrib.auth.backends.ModelBackend`.
 - Config do `django-axes`: `AXES_FAILURE_LIMIT = 5`, `AXES_COOLOFF_TIME = 1` (h), `AXES_LOCKOUT_PARAMETERS = [["ip_address", "username"]]`, `AXES_RESET_ON_SUCCESS = True`.
 - `TAILWIND_APP_NAME = 'theme'`.
 - `DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'`.
 - `TEMPLATES['OPTIONS']['context_processors']` inclui `finances.context_processors.scope` (expõe `active_household` e `user_households`).
-- `SECRET_KEY`, `DEBUG` e `ALLOWED_HOSTS` vêm de variáveis de ambiente, carregadas de um `.env` na raiz pelo `python-dotenv` (`load_dotenv()` no topo do `settings.py`). `SECRET_KEY` é obrigatória (`os.environ['SECRET_KEY']`); `DEBUG` tem default seguro `False`. O `.env` está no `.gitignore`; o `.env.example` é o modelo versionado.
-- Bloco `if not DEBUG:` no fim do arquivo ativa o hardening de produção (SSL redirect, cookies seguros, HSTS via `SECURE_HSTS_SECONDS`, `SECURE_PROXY_SSL_HEADER`).
-- Banco: SQLite em `BASE_DIR / 'db.sqlite3'`.
+- `SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS` e `CSRF_TRUSTED_ORIGINS` vêm de variáveis de ambiente, carregadas de um `.env` na raiz pelo `python-dotenv` (`load_dotenv()` no topo do `settings.py`). `SECRET_KEY` é obrigatória (`os.environ['SECRET_KEY']`); `DEBUG` tem default seguro `False`. O `.env` está no `.gitignore`; o `.env.example` é o modelo versionado.
+- No Railway, o `settings.py` lê `RAILWAY_PUBLIC_DOMAIN` e o anexa a `ALLOWED_HOSTS`/`CSRF_TRUSTED_ORIGINS`; quando há `RAILWAY_ENVIRONMENT`, adiciona `healthcheck.railway.app` ao `ALLOWED_HOSTS` (host do healthcheck — sem ele o deploy não fica saudável).
+- Bloco `if not DEBUG:` no fim do arquivo ativa o hardening de produção (SSL redirect configurável, cookies seguros, HSTS via `SECURE_HSTS_SECONDS`, `SECURE_PROXY_SSL_HEADER`).
+- Banco: `dj_database_url.config()` lê `DATABASE_URL` (PostgreSQL em Docker/Railway, `conn_max_age=600` + `conn_health_checks`) e cai no SQLite (`BASE_DIR / 'db.sqlite3'`) quando a variável não está definida.
+- Estáticos: `STORAGES['staticfiles']` usa `whitenoise.storage.CompressedManifestStaticFilesStorage`; `STATIC_ROOT = BASE_DIR / 'staticfiles'`.
 
 ---
 
@@ -525,7 +552,7 @@ Todos os templates abaixo já estão na identidade visual Emy/Petal (ver seção
 - **Isolamento por escopo em vez de sistema de permissões**: cada usuário tem finanças pessoais privadas e pode participar de grupos compartilhados. Não há matriz de permissões; o filtro por escopo (`in_scope`) em cada query é a barreira e é obrigatório. A única regra de papel é o dono do grupo gerenciar membros.
 - **Escopo pessoal x grupo via `household` opcional (não tabelas separadas)**: `Category`/`Transaction` ganharam um FK `household` anulável — nulo = pessoal, preenchido = do grupo. O escopo ativo vive na sessão (`active_household_id`), resolvido por `get_active_household(request)` (que valida a membership) e aplicado pelos managers `in_scope(user, household)` / `Household.objects.for_user(user)`. Um context processor expõe o escopo aos templates. Mais simples que duplicar models e mantém o ORM DRY.
 - **Login por e-mail sem custom user model**: para padronizar a identidade por e-mail (e permitir adicionar membros por e-mail) sem o risco de trocar `AUTH_USER_MODEL`, o `RegistrationForm` grava o e-mail também no `username`. O login padrão do Django (por `username`) passa a funcionar com o e-mail por serem iguais — sem backend de auth próprio.
-- **Gestão de membros restrita ao dono**: só `Household.created_by` adiciona/remove membros; o dono não pode ser removido. `created_by` em `CASCADE` é escolha de MVP (apagar a conta do dono apaga o grupo) — sem tela de exclusão de grupo/conta ainda.
+- **Gestão do grupo restrita ao dono**: só `Household.created_by` edita o nome (`household_update`), exclui o grupo (`household_delete`) e adiciona/remove membros; o dono não pode ser removido. A exclusão é via POST com tela de confirmação reforçada e, sendo `CASCADE`, apaga todos os dados do grupo (categorias, lançamentos, contas fixas, investimentos, listas) para todos os membros; se o grupo excluído for o escopo ativo, a sessão volta para Pessoal. `created_by` em `CASCADE` (apagar a conta do dono apaga o grupo) é escolha de MVP — ainda não há tela de exclusão de conta.
 - **Investimentos como fluxo separado (aporte não vira `Transaction`)**: `InvestmentGoal`/`InvestmentContribution` são models próprios e reusam o escopo (`household` anulável + `in_scope`). O aporte não duplica em `Transaction`; o dashboard soma os aportes do mês no escopo e os subtrai do saldo. Assim a seção de investimentos fica separada (telas/lista próprias) e o aporte ainda reflete como saída de caixa, sem mexer na obrigatoriedade de `category`.
 - **Listas de casa só em grupo**: `HouseholdList` tem `household` obrigatório (não há lista pessoal). As views exigem escopo de grupo ativo e restringem o acesso às listas dos grupos do usuário; o acesso é via atalho no dashboard quando o escopo é um grupo.
 - **TailwindCSS no modo standalone (sem Node.js)**: optou-se por `django-tailwind` 4.x + `pytailwindcss` em vez do modo "full" que exige Node/npm. Mantém o ambiente de desenvolvimento 100% Python — só `pip install` e os comandos `manage.py tailwind`. O binário do Tailwind CLI é baixado pelo `pytailwindcss`.

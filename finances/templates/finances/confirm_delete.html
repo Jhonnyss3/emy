@@ -6,12 +6,17 @@
     <div class="rounded-[2rem] bg-emy-surface p-7 text-center shadow-[0_30px_80px_-30px_rgba(42,26,54,0.45)] sm:p-8">
         <div class="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-emy-bad/10 text-2xl">🗑️</div>
         <h1 class="mt-4 text-2xl font-extrabold tracking-tight">
-            Excluir {% if object._meta.model_name == 'category' %}categoria{% elif object._meta.model_name == 'investmentgoal' %}objetivo{% elif object._meta.model_name == 'householdlist' %}lista{% elif object._meta.model_name == 'recurringtransaction' %}conta fixa{% else %}lançamento{% endif %}?
+            Excluir {% if object._meta.model_name == 'category' %}categoria{% elif object._meta.model_name == 'investmentgoal' %}objetivo{% elif object._meta.model_name == 'householdlist' %}lista{% elif object._meta.model_name == 'household' %}grupo{% elif object._meta.model_name == 'recurringtransaction' %}conta fixa{% else %}lançamento{% endif %}?
         </h1>
         <p class="mt-2 text-sm text-emy-ink-soft">
             Tem certeza que deseja excluir <strong class="text-emy-ink">{{ object }}</strong>?
             Essa ação não pode ser desfeita.
         </p>
+        {% if object._meta.model_name == 'household' %}
+            <p class="mt-3 rounded-2xl bg-emy-bad/10 px-4 py-3 text-sm text-emy-bad">
+                Isso também apaga todas as categorias, lançamentos, contas fixas, objetivos e listas do grupo, para todos os membros.
+            </p>
+        {% endif %}
         <form method="post" class="mt-6 flex items-center justify-center gap-3">
             {% csrf_token %}
             <a href="javascript:history.back()"

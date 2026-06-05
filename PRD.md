@@ -117,6 +117,7 @@ usuários sobre a mesma carteira (conta compartilhada).
 | RF21 | O cadastro e o login são feitos por e-mail (gravado também como `username`). | Alta |
 | RF22 | O usuário pode criar grupos e listar os grupos de que participa. | Alta |
 | RF23 | O dono do grupo pode adicionar membros por e-mail e removê-los. | Alta |
+| RF23a | O dono do grupo pode renomear e excluir o grupo; a exclusão (via confirmação) remove os dados do grupo para todos os membros. | Alta |
 | RF24 | O usuário pode alternar o escopo ativo entre Pessoal e cada grupo. | Alta |
 | RF25 | Dashboard, transações e categorias operam sempre no escopo ativo; dados pessoais ficam privados e dados de grupo são compartilhados entre os membros. | Alta |
 | RF26 | Categorias e transações podem pertencer a um grupo (`household`) ou serem pessoais. | Alta |
@@ -204,7 +205,7 @@ flowchart TD
 | RNF10 | Integridade | Constraints de banco para unicidade e proteção referencial. |
 | RNF11 | Manutenibilidade | Código em inglês, seguindo convenções Django. |
 | RNF12 | Manutenibilidade | Separação clara: models, forms, views, templates, urls. |
-| RNF13 | Portabilidade | Compatível com SQLite (dev) e PostgreSQL (produção futura). |
+| RNF13 | Portabilidade | Compatível com SQLite (dev) e PostgreSQL (produção, via `DATABASE_URL`). |
 | RNF14 | Acessibilidade | Contraste mínimo AA, labels associados a inputs, navegação por teclado. |
 | RNF15 | Observabilidade | `python manage.py check` sem erros antes de cada release. |
 | RNF16 | Acesso | Usuário autenticado sem perfil completo é redirecionado para a tela de perfil (`ProfileCompletionMiddleware`). |
@@ -223,10 +224,11 @@ flowchart TD
 | Estilização | TailwindCSS v4 | `django-tailwind` 4.x no modo standalone (`pytailwindcss`) — sem Node.js. Instalado e configurado. |
 | Autenticação | `django.contrib.auth` | `User` nativo |
 | Banco (dev) | SQLite 3 | `db.sqlite3` |
-| Banco (prod, futuro) | PostgreSQL | Mesmo ORM, sem mudança de modelo |
+| Banco (produção) | PostgreSQL | Via `DATABASE_URL` + `dj-database-url`; mesmo ORM, sem mudança de modelo |
 | Admin | `django.contrib.admin` | Gestão interna |
 | Servidor (dev) | `runserver` | |
-| Servidor (prod, futuro) | Gunicorn + Nginx | WSGI |
+| Servidor (produção) | Gunicorn + WhiteNoise | WSGI; estáticos servidos pelo WhiteNoise (sem Nginx) |
+| Container / deploy | Docker (multi-stage) no Railway | `Dockerfile` + `railway.json`; push na `main` dispara o rebuild |
 
 **Organização do projeto:**
 
@@ -244,6 +246,10 @@ emy/
 │   └── templates/        # base.html, finances/, registration/
 ├── theme/                # App do django-tailwind (fonte + build do CSS)
 ├── docs/                 # Documentação de guidelines e padrões
+├── Dockerfile            # Imagem multi-stage (builder + runtime non-root)
+├── entrypoint.sh         # migrate no start + handoff para o gunicorn
+├── docker-compose.yml    # Stack local: web (gunicorn) + db (PostgreSQL)
+├── railway.json          # Config de build/healthcheck do Railway
 ├── manage.py
 ├── requirements.txt
 └── db.sqlite3
@@ -955,7 +961,9 @@ Títulos de página: `text-3xl font-extrabold tracking-tight`. Auxiliar:
   - [ ] T8.4.1 — `README` com setup, execução e variáveis de ambiente.
   - [ ] T8.4.2 — `CLAUDE.md` com convenções do projeto.
   - [ ] T8.4.3 — Pipeline de CI rodando `check` + testes.
-  - [ ] T8.4.4 — Roteiro de deploy (Gunicorn + Nginx + PostgreSQL).
+  - [x] T8.4.4 — Roteiro de deploy. Feito: containerizado (`Dockerfile`
+        multi-stage) com Gunicorn + WhiteNoise + PostgreSQL, deploy no Railway
+        (`railway.json`); passo a passo em `docs/getting-started.md`.
 
 ### Backlog futuro (pós-v1)
 

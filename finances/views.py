@@ -181,6 +181,49 @@ def household_detail(request, pk):
 
 
 @login_required
+def household_update(request, pk):
+    household = get_object_or_404(
+        Household.objects.for_user(request.user), pk=pk
+    )
+    if household.created_by_id != request.user.id:
+        messages.error(request, "Apenas o dono do grupo pode editá-lo.")
+        return redirect("finances:household_detail", pk=pk)
+
+    if request.method == "POST":
+        form = HouseholdForm(request.POST, instance=household)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Grupo atualizado.")
+            return redirect("finances:household_detail", pk=pk)
+    else:
+        form = HouseholdForm(instance=household)
+    return render(
+        request,
+        "finances/household_form.html",
+        {"form": form, "title": "Editar grupo", "submit_label": "Salvar"},
+    )
+
+
+@login_required
+def household_delete(request, pk):
+    household = get_object_or_404(
+        Household.objects.for_user(request.user), pk=pk
+    )
+    if household.created_by_id != request.user.id:
+        messages.error(request, "Apenas o dono do grupo pode excluí-lo.")
+        return redirect("finances:household_detail", pk=pk)
+
+    if request.method == "POST":
+        # Deleting the active scope leaves a stale id in the session; reset it.
+        if request.session.get("active_household_id") == household.pk:
+            request.session.pop("active_household_id", None)
+        household.delete()
+        messages.success(request, "Grupo excluído.")
+        return redirect("finances:household_list")
+    return render(request, "finances/confirm_delete.html", {"object": household})
+
+
+@login_required
 def member_add(request, pk):
     household = get_object_or_404(
         Household.objects.for_user(request.user), pk=pk

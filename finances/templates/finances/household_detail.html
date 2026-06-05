@@ -13,6 +13,19 @@
         </div>
 
         {% if is_owner %}
+            <div class="mb-6 flex gap-2">
+                <a href="{% url 'finances:household_update' household.pk %}"
+                   class="rounded-full bg-emy-surface px-4 py-2 text-sm font-semibold text-emy-ink-soft shadow-sm transition hover:text-emy-pink-600">
+                    Editar grupo
+                </a>
+                <a href="{% url 'finances:household_delete' household.pk %}"
+                   class="rounded-full bg-emy-surface px-4 py-2 text-sm font-semibold text-emy-bad shadow-sm transition hover:bg-emy-bad/10">
+                    Excluir grupo
+                </a>
+            </div>
+        {% endif %}
+
+        {% if is_owner %}
             <h2 class="mb-3 text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Adicionar membro</h2>
             <form method="post" action="{% url 'finances:member_add' household.pk %}"
                   class="rounded-[1.75rem] bg-emy-surface p-6 shadow-sm">

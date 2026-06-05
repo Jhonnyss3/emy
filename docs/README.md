@@ -9,7 +9,7 @@ organizado e como contribuir seguindo os padrões estabelecidos.
 
 | Documento | Conteúdo |
 |---|---|
-| [getting-started.md](getting-started.md) | Como instalar dependências e rodar o projeto localmente. |
+| [getting-started.md](getting-started.md) | Como instalar dependências, rodar o projeto localmente, com Docker e o deploy no Railway. |
 | [architecture.md](architecture.md) | Stack, estrutura de pastas e responsabilidade de cada app. |
 | [data-model.md](data-model.md) | Models, enums, constraints e regras de integridade. |
 | [coding-guidelines.md](coding-guidelines.md) | Idioma do código, ordem de implementação e estilo. |

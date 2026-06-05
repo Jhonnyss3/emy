@@ -11,8 +11,9 @@
 ### .gitignore
 
 O repositório não versiona: `__pycache__/` e `*.pyc`, `.venv/`, `db.sqlite3`,
-`/media/` e `/staticfiles/`, arquivos `.env` (exceto `.env.example`), o CSS
-compilado em `theme/static/css/dist/`, e arquivos de IDE/OS.
+`/media/` e `/staticfiles/`, arquivos `.env*` (exceto `.env.example` e
+`.env.docker.example`), o CSS compilado em `theme/static/css/dist/`, e arquivos
+de IDE/OS.
 
 ## Migrations
 
@@ -41,7 +42,22 @@ compilado em `theme/static/css/dist/`, e arquivos de IDE/OS.
   `ProfileCompletionMiddleware` redireciona os testes de view para a tela de
   perfil.
 
+## Deploy
+
+- Produção roda no **Railway** a partir do `Dockerfile` (ver
+  [getting-started.md](getting-started.md), seção "Docker e deploy"). Push na
+  branch `main` do GitHub dispara o rebuild.
+- O build da imagem roda `tailwind build` + `collectstatic`; o `entrypoint.sh`
+  roda `migrate` no start. Não rodar `migrate` manualmente no deploy — o
+  entrypoint cuida disso.
+- Variáveis sensíveis ficam no painel do Railway, nunca no repositório.
+- Reproduzir o build localmente com `docker compose up --build` antes de
+  mudanças que toquem `Dockerfile`/`requirements.txt`.
+
 ## Antes de cada release
 
 - Rodar `python manage.py check` (e `check --deploy` para produção) sem
   erros.
+- Rodar a suíte de testes (`pytest`). Os testes renderizam templates que
+  referenciam o CSS via manifest do WhiteNoise; rodar `tailwind build` +
+  `collectstatic` antes, senão falham com "Missing staticfiles manifest entry".

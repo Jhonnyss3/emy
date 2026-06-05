@@ -72,16 +72,36 @@ não só por `request.user` — e continua sendo a barreira central e
   `.env.example` (sem segredos) serve de modelo e é versionado.
 - `SECRET_KEY` é lida com `os.environ['SECRET_KEY']` — obrigatória, o projeto
   não sobe sem ela. `DEBUG` vem de `os.environ.get('DEBUG', 'False') == 'True'`
-  (default seguro: `False`). `ALLOWED_HOSTS` é a lista separada por vírgula da
-  variável de mesmo nome.
+  (default seguro: `False`). `ALLOWED_HOSTS` e `CSRF_TRUSTED_ORIGINS` (este com
+  o esquema, ex.: `https://...`) são listas separadas por vírgula das variáveis
+  de mesmo nome.
 - `DEBUG = False` em produção. `ALLOWED_HOSTS` restrito em produção.
 - Não logar dados sensíveis (senhas, tokens, PII desnecessária).
 - Em produção: HTTPS obrigatório. Um bloco `if not DEBUG:` no fim de
-  `core/settings.py` ativa automaticamente `SECURE_SSL_REDIRECT`,
-  `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, `SECURE_HSTS_SECONDS`
+  `core/settings.py` ativa automaticamente `SECURE_SSL_REDIRECT` (configurável
+  via env), `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, `SECURE_HSTS_SECONDS`
   (configurável via env, default 1 ano) + `SECURE_HSTS_INCLUDE_SUBDOMAINS`,
-  `SECURE_HSTS_PRELOAD` e `SECURE_PROXY_SSL_HEADER` (para o reverse proxy).
+  `SECURE_HSTS_PRELOAD` e `SECURE_PROXY_SSL_HEADER` (confia no
+  `X-Forwarded-Proto` do proxy que termina o TLS — o edge do Railway).
   Em desenvolvimento (`DEBUG=True`) o bloco fica inerte.
 - Antes de cada release: rodar `python manage.py check --deploy` e resolver
   os apontamentos. Com `DEBUG=False` + `ALLOWED_HOSTS` preenchido, hoje
   retorna 0 issues.
+
+## Deploy (Railway / Docker)
+
+- A imagem roda como **usuário não-root** (`Dockerfile`), e os segredos
+  (`SECRET_KEY`, `DATABASE_URL` etc.) vêm de variáveis de ambiente do painel do
+  Railway — nunca da imagem. O `SECRET_KEY` usado no build é descartável e só
+  serve para o settings importar durante `tailwind build`/`collectstatic`.
+- **`ALLOWED_HOSTS` no Railway:** o `settings.py` anexa o `RAILWAY_PUBLIC_DOMAIN`
+  (domínio público injetado) e, quando há `RAILWAY_ENVIRONMENT`, o host fixo
+  `healthcheck.railway.app` que o healthcheck do Railway usa no header `Host` —
+  sem ele o healthcheck recebe 400 (DisallowedHost) e o deploy nunca fica
+  saudável. Com domínio próprio, informe-o via `ALLOWED_HOSTS`/
+  `CSRF_TRUSTED_ORIGINS`.
+- **`SECURE_SSL_REDIRECT`:** no Railway o TLS é terminado no edge e o healthcheck
+  bate por HTTP interno; mantê-lo `True` faria o healthcheck tomar 302. Por isso
+  em produção no Railway ele é definido como `False` (o edge já força HTTPS).
+- **Brute force / axes**: o handler do `django-axes` é em banco, então funciona
+  em produção multi-worker (gunicorn) sem estado em memória compartilhado.

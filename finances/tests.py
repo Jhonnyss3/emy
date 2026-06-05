@@ -154,6 +154,51 @@ def test_non_owner_cannot_add_member(client, other, household):
     assert household.memberships.count() == 2
 
 
+def test_owner_can_update_household(client, user, household):
+    client.force_login(user)
+    resp = client.post(
+        reverse("finances:household_update", args=[household.pk]),
+        {"name": "Casa Nova"},
+    )
+    assert resp.status_code == 302
+    household.refresh_from_db()
+    assert household.name == "Casa Nova"
+
+
+def test_non_owner_cannot_update_household(client, other, household):
+    HouseholdMembership.objects.create(household=household, user=other)
+    client.force_login(other)
+    client.post(
+        reverse("finances:household_update", args=[household.pk]),
+        {"name": "Hijacked"},
+    )
+    household.refresh_from_db()
+    assert household.name == "Casa"
+
+
+def test_owner_can_delete_household(client, user, household):
+    client.force_login(user)
+    resp = client.post(reverse("finances:household_delete", args=[household.pk]))
+    assert resp.status_code == 302
+    assert not Household.objects.filter(pk=household.pk).exists()
+
+
+def test_non_owner_cannot_delete_household(client, other, household):
+    HouseholdMembership.objects.create(household=household, user=other)
+    client.force_login(other)
+    client.post(reverse("finances:household_delete", args=[household.pk]))
+    assert Household.objects.filter(pk=household.pk).exists()
+
+
+def test_household_delete_clears_active_scope(client, user, household):
+    client.force_login(user)
+    session = client.session
+    session["active_household_id"] = household.pk
+    session.save()
+    client.post(reverse("finances:household_delete", args=[household.pk]))
+    assert client.session.get("active_household_id") is None
+
+
 # --- Scope isolation --------------------------------------------------------
 
 
