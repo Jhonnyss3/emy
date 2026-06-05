@@ -85,7 +85,6 @@ class CategoryForm(forms.ModelForm):
             "name": forms.TextInput(attrs={"placeholder": "e.g. Groceries"}),
             "type": forms.Select(),
             "color": forms.TextInput(attrs={"type": "color"}),
-            "icon": forms.TextInput(attrs={"placeholder": "Optional icon name"}),
         }
 
     def __init__(self, *args, user=None, household=None, **kwargs):

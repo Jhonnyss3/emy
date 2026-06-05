@@ -162,6 +162,11 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
+# User-uploaded files. In production MEDIA_ROOT points to a Railway volume so
+# uploads survive deploys (the container filesystem is ephemeral).
+MEDIA_URL = 'media/'
+MEDIA_ROOT = os.environ.get('MEDIA_ROOT', BASE_DIR / 'media')
+
 # WhiteNoise: compress and hash static files for long-term caching.
 STORAGES = {
     'default': {

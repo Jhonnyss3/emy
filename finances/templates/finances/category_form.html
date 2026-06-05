@@ -8,7 +8,7 @@
         ←
     </button>
 </div>
-<form method="post" novalidate
+<form method="post" enctype="multipart/form-data" novalidate
       class="grid overflow-hidden rounded-[2.5rem] bg-emy-surface shadow-[0_30px_80px_-30px_rgba(42,26,54,0.45)] md:grid-cols-2">
     {% csrf_token %}
 
@@ -59,15 +59,28 @@
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label for="id_color" class="mb-1 block text-sm font-semibold text-emy-ink-soft">Cor</label>
+                    <div class="mb-2 flex flex-wrap gap-1.5">
+                        {% for swatch in color_choices %}
+                            <button type="button" data-color="{{ swatch }}" aria-label="Cor {{ swatch }}"
+                                    class="color-swatch h-7 w-7 rounded-full ring-1 ring-emy-line transition hover:scale-110"
+                                    style="background:{{ swatch }}"></button>
+                        {% endfor %}
+                    </div>
                     <input type="color" name="color" id="id_color" value="{{ form.color.value|default:'#EC4899' }}"
                            class="h-12 w-full cursor-pointer rounded-2xl bg-emy-bg p-1 ring-1 ring-emy-line">
                     {% for error in form.color.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
                 </div>
                 <div>
                     <label for="id_icon" class="mb-1 block text-sm font-semibold text-emy-ink-soft">Ícone</label>
-                    <input type="text" name="icon" id="id_icon" value="{{ form.icon.value|default:'' }}"
-                           placeholder="Opcional"
-                           class="w-full rounded-2xl bg-emy-bg px-4 py-3 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">
+                    <div class="flex items-center gap-3">
+                        {% if form.instance.icon %}
+                            <img src="{{ form.instance.icon.url }}" alt="Ícone atual"
+                                 class="h-12 w-12 shrink-0 rounded-2xl object-cover ring-1 ring-emy-line">
+                        {% endif %}
+                        <input type="file" name="icon" id="id_icon" accept="image/*"
+                               class="w-full text-sm text-emy-ink-soft file:mr-3 file:rounded-full file:border-0 file:bg-emy-pink-100 file:px-4 file:py-2 file:text-sm file:font-bold file:text-emy-pink-700">
+                    </div>
+                    <p class="mt-1 text-xs text-emy-ink-mute">Opcional. Envie uma imagem (PNG, JPG).</p>
                     {% for error in form.icon.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
                 </div>
             </div>
@@ -88,4 +101,16 @@
         </div>
     </div>
 </form>
+
+<script>
+(function () {
+    const picker = document.getElementById("id_color");
+    if (!picker) return;
+    document.querySelectorAll(".color-swatch").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+            picker.value = btn.dataset.color;
+        });
+    });
+})();
+</script>
 {% endblock %}

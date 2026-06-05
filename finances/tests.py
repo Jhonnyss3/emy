@@ -451,6 +451,27 @@ def test_category_create_view_handles_duplicate(client, user):
     assert Category.objects.filter(user=user, name="Mercado").count() == 1
 
 
+def test_category_create_accepts_image_icon(client, user, settings, tmp_path):
+    settings.MEDIA_ROOT = tmp_path
+    import io
+
+    from django.core.files.uploadedfile import SimpleUploadedFile
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (10, 10), "pink").save(buf, "PNG")
+    buf.seek(0)
+    icon = SimpleUploadedFile("icon.png", buf.read(), content_type="image/png")
+
+    client.force_login(user)
+    resp = client.post(
+        reverse("finances:category_create"), {**CAT_DATA, "icon": icon}
+    )
+    assert resp.status_code == 302
+    cat = Category.objects.get(user=user, name="Mercado")
+    assert cat.icon.name.startswith("category_icons/")
+
+
 def test_category_update_keeps_creator(client, user, other, household):
     HouseholdMembership.objects.create(household=household, user=other)
     cat = Category.objects.create(

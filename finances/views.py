@@ -7,7 +7,7 @@ from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
@@ -50,6 +50,11 @@ def get_active_household(request):
 MONTHS_PT = [
     "", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
     "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+]
+
+CATEGORY_COLORS = [
+    "#EC4899", "#F43F5E", "#EF4444", "#F97316", "#F59E0B", "#84CC16",
+    "#10B981", "#14B8A6", "#06B6D4", "#3B82F6", "#6366F1", "#8B5CF6",
 ]
 
 
@@ -220,8 +225,11 @@ def household_delete(request, pk):
         with transaction.atomic():
             # Transactions/recurring bills reference categories via PROTECT, so
             # drop them before the household cascade removes the categories.
-            Transaction.objects.filter(household=household).delete()
-            RecurringTransaction.objects.filter(household=household).delete()
+            # Cover both the group's own entries and any entry (e.g. personal)
+            # that still references a group category, or the cascade trips.
+            scope = Q(household=household) | Q(category__household=household)
+            Transaction.objects.filter(scope).delete()
+            RecurringTransaction.objects.filter(scope).delete()
             household.delete()
         messages.success(request, "Grupo excluído.")
         return redirect("finances:household_list")
@@ -551,7 +559,9 @@ def category_list(request):
 def category_create(request):
     household = get_active_household(request)
     if request.method == "POST":
-        form = CategoryForm(request.POST, user=request.user, household=household)
+        form = CategoryForm(
+            request.POST, request.FILES, user=request.user, household=household
+        )
         if form.is_valid():
             form.save()
             messages.success(request, "Category created.")
@@ -561,7 +571,7 @@ def category_create(request):
     return render(
         request,
         "finances/category_form.html",
-        {"form": form, "title": "New category"},
+        {"form": form, "title": "New category", "color_choices": CATEGORY_COLORS},
     )
 
 
@@ -573,7 +583,11 @@ def category_update(request, pk):
     )
     if request.method == "POST":
         form = CategoryForm(
-            request.POST, instance=category, user=request.user, household=household
+            request.POST,
+            request.FILES,
+            instance=category,
+            user=request.user,
+            household=household,
         )
         if form.is_valid():
             form.save()
@@ -586,7 +600,7 @@ def category_update(request, pk):
     return render(
         request,
         "finances/category_form.html",
-        {"form": form, "title": "Edit category"},
+        {"form": form, "title": "Edit category", "color_choices": CATEGORY_COLORS},
     )
 
 

@@ -16,12 +16,12 @@ class TransactionType(models.TextChoices):
 class PaymentMethod(models.TextChoices):
     """How a transaction was settled."""
 
-    CASH = "cash", "Cash"
-    DEBIT_CARD = "debit_card", "Debit card"
-    CREDIT_CARD = "credit_card", "Credit card"
+    CASH = "cash", "Dinheiro"
+    DEBIT_CARD = "debit_card", "Cartão de débito"
+    CREDIT_CARD = "credit_card", "Cartão de crédito"
     PIX = "pix", "Pix"
-    BANK_SLIP = "bank_slip", "Bank slip"
-    BANK_TRANSFER = "bank_transfer", "Bank transfer"
+    BANK_SLIP = "bank_slip", "Boleto"
+    BANK_TRANSFER = "bank_transfer", "Transferência"
 
 
 hex_color_validator = RegexValidator(
@@ -142,7 +142,7 @@ class Category(models.Model):
         default="#3498db",
         validators=[hex_color_validator],
     )
-    icon = models.CharField(max_length=50, blank=True)
+    icon = models.ImageField(upload_to="category_icons/", blank=True, null=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

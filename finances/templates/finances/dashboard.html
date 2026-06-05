@@ -5,7 +5,7 @@
 <!-- Cabeçalho -->
 <div class="mb-6 flex flex-wrap items-end justify-between gap-4">
     <div>
-        <h1 class="text-3xl font-extrabold tracking-tight">Olá, {{ user.first_name|default:user.username }} ✨</h1>
+        <h1 class="text-3xl font-extrabold tracking-tight">Olá, {{ user.first_name|default:user.username }}</h1>
         <div class="mt-2 flex items-center gap-2">
             <a href="?month={{ prev_month }}" aria-label="Mês anterior"
                class="grid h-9 w-9 place-items-center rounded-full bg-emy-surface text-lg text-emy-ink-soft shadow-sm transition hover:text-emy-pink-600">‹</a>
@@ -29,14 +29,18 @@
         <p class="text-xs font-semibold uppercase tracking-wider text-white/70">Saldo · {{ month_label }}</p>
         <p class="mt-2 text-3xl font-extrabold">R$ {{ balance|floatformat:2 }}</p>
     </div>
-    <div class="rounded-[1.5rem] bg-emy-surface p-5 shadow-[0_20px_50px_-30px_rgba(42,26,54,0.4)]">
+    <a href="{% url 'finances:transaction_list' %}?type=income&month={{ ref_month|date:'Y-m' }}"
+       class="rounded-[1.5rem] bg-emy-surface p-5 shadow-[0_20px_50px_-30px_rgba(42,26,54,0.4)] transition hover:shadow-md">
         <p class="text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Entrou</p>
         <p class="mt-2 text-2xl font-extrabold text-emy-good">R$ {{ income|floatformat:2 }}</p>
-    </div>
-    <div class="rounded-[1.5rem] bg-emy-surface p-5 shadow-[0_20px_50px_-30px_rgba(42,26,54,0.4)]">
+        <span class="mt-2 block text-xs font-bold text-emy-pink-600">Ver entradas →</span>
+    </a>
+    <a href="{% url 'finances:transaction_list' %}?type=expense&month={{ ref_month|date:'Y-m' }}"
+       class="rounded-[1.5rem] bg-emy-surface p-5 shadow-[0_20px_50px_-30px_rgba(42,26,54,0.4)] transition hover:shadow-md">
         <p class="text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Saiu</p>
         <p class="mt-2 text-2xl font-extrabold text-emy-bad">R$ {{ expense|floatformat:2 }}</p>
-    </div>
+        <span class="mt-2 block text-xs font-bold text-emy-pink-600">Ver saídas →</span>
+    </a>
     <a href="{% url 'finances:investment_list' %}"
        class="col-span-2 flex flex-col rounded-[1.5rem] bg-emy-surface p-5 shadow-[0_20px_50px_-30px_rgba(42,26,54,0.4)] transition hover:shadow-md lg:col-span-1">
         <p class="text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Investido</p>
