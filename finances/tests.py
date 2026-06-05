@@ -733,3 +733,37 @@ def test_forecast_projects_and_does_not_double_count(client, user):
     client.get(reverse("finances:dashboard"))
     resp2 = client.get(reverse("finances:forecast"))
     assert resp2.context["months"][0]["expense"] == Decimal("1000")
+
+
+# --- Dashboard breakdowns ---------------------------------------------------
+
+
+def test_dashboard_breaks_down_expenses_by_category_and_payment(client, user):
+    market = Category.objects.create(user=user, name="Mercado", type="expense")
+    transport = Category.objects.create(user=user, name="Transporte", type="expense")
+    income_cat = Category.objects.create(user=user, name="Salário", type="income")
+    today = timezone.localdate().replace(day=10)
+    Transaction.objects.create(
+        user=user, category=market, description="Compra",
+        amount=Decimal("300"), date=today, type="expense",
+        payment_method="credit_card",
+    )
+    Transaction.objects.create(
+        user=user, category=transport, description="Uber",
+        amount=Decimal("100"), date=today, type="expense",
+        payment_method="pix",
+    )
+    # income must not leak into the expense breakdowns
+    Transaction.objects.create(
+        user=user, category=income_cat, description="Pagamento",
+        amount=Decimal("5000"), date=today, type="income",
+        payment_method="bank_transfer",
+    )
+    client.force_login(user)
+    resp = client.get(reverse("finances:dashboard"))
+
+    by_category = {row["name"]: row["total"] for row in resp.context["by_category"]}
+    assert by_category == {"Mercado": Decimal("300"), "Transporte": Decimal("100")}
+
+    by_payment = {row["label"]: row["total"] for row in resp.context["by_payment"]}
+    assert by_payment == {"Cartão de crédito": Decimal("300"), "Pix": Decimal("100")}

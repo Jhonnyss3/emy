@@ -31,6 +31,7 @@ from .models import (
     HouseholdMembership,
     InvestmentContribution,
     InvestmentGoal,
+    PaymentMethod,
     RecurringTransaction,
     Transaction,
     TransactionType,
@@ -350,9 +351,36 @@ def dashboard(request):
     income = month_qs.filter(type=TransactionType.INCOME).aggregate(
         total=Sum("amount")
     )["total"] or Decimal("0")
-    expense = month_qs.filter(type=TransactionType.EXPENSE).aggregate(
-        total=Sum("amount")
-    )["total"] or Decimal("0")
+    expense_qs = month_qs.filter(type=TransactionType.EXPENSE)
+    expense = expense_qs.aggregate(total=Sum("amount"))["total"] or Decimal("0")
+
+    # Credit card spending for the month; it is a subset of expense, not extra.
+    credit_card = expense_qs.filter(
+        payment_method=PaymentMethod.CREDIT_CARD,
+    ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
+
+    # Expense breakdowns for the selected month, by category and payment method.
+    by_category = [
+        {
+            "name": row["category__name"],
+            "color": row["category__color"],
+            "total": row["total"],
+            "percent": row["total"] / expense * 100 if expense else 0,
+        }
+        for row in expense_qs.values("category__name", "category__color")
+        .annotate(total=Sum("amount"))
+        .order_by("-total")
+    ]
+    by_payment = [
+        {
+            "label": PaymentMethod(row["payment_method"]).label,
+            "total": row["total"],
+            "percent": row["total"] / expense * 100 if expense else 0,
+        }
+        for row in expense_qs.values("payment_method")
+        .annotate(total=Sum("amount"))
+        .order_by("-total")
+    ]
 
     # Investment contributions in the active scope count as money out of the cash flow.
     invested = InvestmentContribution.objects.filter(
@@ -365,6 +393,9 @@ def dashboard(request):
         **month,
         "income": income,
         "expense": expense,
+        "credit_card": credit_card,
+        "by_category": by_category,
+        "by_payment": by_payment,
         "invested": invested,
         "balance": income - expense - invested,
         "recent": month_qs.select_related("category")[:10],
