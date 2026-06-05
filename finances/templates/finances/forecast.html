@@ -5,26 +5,67 @@
 {% block content %}
 <div class="mb-6">
     <h1 class="text-3xl font-extrabold tracking-tight">Previsão</h1>
-    <p class="mt-1 text-sm text-emy-ink-soft">Os próximos meses com parcelas e contas fixas já consideradas.</p>
+    <p class="mt-1 text-sm text-emy-ink-soft">Os próximos 6 meses com parcelas e contas fixas já consideradas.</p>
 </div>
 
-<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+<!-- Trajetória + resumo -->
+<div class="grid gap-5 lg:grid-cols-3">
+    <div class="card lg:col-span-2">
+        <div class="flex items-center justify-between">
+            <h2 class="text-lg font-extrabold tracking-tight">Trajetória do saldo</h2>
+            <span class="text-xs text-emy-ink-mute">acumulado no período</span>
+        </div>
+        {{ chart|json_script:"forecast-data" }}
+        <div id="forecast-chart" class="mt-4"></div>
+    </div>
+
+    <div class="card">
+        <h2 class="text-lg font-extrabold tracking-tight">Resumo</h2>
+        <dl class="mt-4 space-y-3">
+            <div class="flex items-center justify-between gap-3">
+                <dt class="text-sm text-emy-ink-soft">Saldo previsto (6 meses)</dt>
+                <dd class="text-sm font-extrabold {% if summary.end_balance < 0 %}text-emy-bad{% else %}text-emy-good{% endif %}">{{ summary.end_balance|brl }}</dd>
+            </div>
+            <div class="flex items-center justify-between gap-3">
+                <dt class="text-sm text-emy-ink-soft">Média mensal</dt>
+                <dd class="text-sm font-bold {% if summary.avg_balance < 0 %}text-emy-bad{% else %}text-emy-ink{% endif %}">{{ summary.avg_balance|brl }}</dd>
+            </div>
+            <div class="flex items-start justify-between gap-3">
+                <dt class="text-sm text-emy-ink-soft">Mês mais apertado</dt>
+                <dd class="text-right">
+                    <span class="block text-sm font-bold text-emy-ink">{{ summary.tightest_label }}</span>
+                    <span class="block text-xs {% if summary.tightest_balance < 0 %}text-emy-bad{% else %}text-emy-ink-mute{% endif %}">{{ summary.tightest_balance|brl }}</span>
+                </dd>
+            </div>
+            <div class="flex items-center justify-between gap-3 border-t border-emy-line pt-3">
+                <dt class="text-sm text-emy-ink-soft">Já comprometido</dt>
+                <dd class="text-sm font-bold text-emy-ink">{{ summary.total_committed|brl }}</dd>
+            </div>
+        </dl>
+    </div>
+</div>
+
+<!-- Cards por mês -->
+<div class="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
     {% for m in months %}
         <a href="{% url 'finances:dashboard' %}?month={{ m.month_param }}"
-           class="block rounded-[1.5rem] p-5 shadow-card transition hover:shadow-md
-           {% if m.is_current %}bg-gradient-to-br from-emy-pink-500 to-emy-purple-600 text-white{% else %}bg-emy-surface{% endif %}">
+           class="block rounded-[1.5rem] p-5 shadow-card transition hover:shadow-md {% if m.is_current %}bg-gradient-to-br from-emy-pink-500 to-emy-purple-600 text-white{% else %}bg-emy-surface{% endif %}">
             <div class="flex items-center justify-between">
                 <p class="text-sm font-bold {% if not m.is_current %}text-emy-ink{% endif %}">{{ m.label }}</p>
                 {% if m.is_current %}<span class="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider">Atual</span>{% endif %}
             </div>
-            <p class="mt-3 text-2xl font-extrabold {% if m.is_current %}text-white{% elif m.balance < 0 %}text-emy-bad{% else %}text-emy-good{% endif %}">
-                {{ m.balance|brl }}
-            </p>
-            <p class="text-xs {% if m.is_current %}text-white/70{% else %}text-emy-ink-mute{% endif %}">saldo previsto</p>
-            <div class="mt-4 flex items-center justify-between text-xs font-semibold {% if m.is_current %}text-white/90{% else %}text-emy-ink-soft{% endif %}">
+            <p class="mt-3 text-2xl font-extrabold {% if m.is_current %}text-white{% elif m.balance < 0 %}text-emy-bad{% else %}text-emy-good{% endif %}">{{ m.balance|brl }}</p>
+            <p class="mt-0.5 text-[11px] {% if m.is_current %}text-white/70{% else %}text-emy-ink-mute{% endif %}">Acumulado: {{ m.cumulative|brl }}</p>
+            <div class="mt-3 flex items-center justify-between text-xs {% if m.is_current %}text-white/80{% else %}text-emy-ink-mute{% endif %}">
                 <span>↑ {{ m.income|brl }}</span>
                 <span>↓ {{ m.expense|brl }}</span>
             </div>
+            {% if m.expense %}
+                <div class="mt-3 h-1.5 overflow-hidden rounded-full {% if m.is_current %}bg-white/25{% else %}bg-emy-bg{% endif %}">
+                    <span class="block h-full rounded-full {% if m.is_current %}bg-white/80{% else %}bg-gradient-to-r from-emy-pink-500 to-emy-purple-500{% endif %}" style="width:{{ m.committed_pct|floatformat:0 }}%"></span>
+                </div>
+                <p class="mt-1 text-[10px] {% if m.is_current %}text-white/70{% else %}text-emy-ink-mute{% endif %}">{{ m.committed|brl }} comprometido · {{ m.free|brl }} livre</p>
+            {% endif %}
         </a>
     {% endfor %}
 </div>

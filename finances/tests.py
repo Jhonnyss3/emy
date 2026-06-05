@@ -782,6 +782,33 @@ def test_forecast_projects_and_does_not_double_count(client, user):
     assert resp2.context["months"][0]["expense"] == Decimal("1000")
 
 
+def test_forecast_accumulates_balance_and_marks_committed(client, user):
+    cat = Category.objects.create(user=user, name="Moradia", type="expense")
+    income_cat = Category.objects.create(user=user, name="Salário", type="income")
+    today = timezone.localdate()
+    # a fixed expense bill (committed) and a one-off free income in the current month
+    _make_bill(user, cat, amount=Decimal("1000"), start_date=today.replace(day=5))
+    Transaction.objects.create(
+        user=user, category=income_cat, description="Salário",
+        amount=Decimal("3000"), date=today, type="income", payment_method="pix",
+    )
+    client.force_login(user)
+    resp = client.get(reverse("finances:forecast"))
+    months = resp.context["months"]
+
+    # the projected bill counts as committed expense
+    assert months[0]["committed"] == Decimal("1000")
+    assert months[0]["balance"] == Decimal("2000")  # 3000 income - 1000 bill
+    # cumulative rolls forward: month 1 carries month 0's surplus minus its bill
+    assert months[0]["cumulative"] == Decimal("2000")
+    assert months[1]["cumulative"] == Decimal("1000")  # 2000 - 1000
+
+    summary = resp.context["summary"]
+    assert summary["total_committed"] == Decimal("6000")  # 1000 x 6 months
+    assert summary["end_balance"] == months[-1]["cumulative"]
+    assert len(resp.context["chart"]) == 6
+
+
 # --- Dashboard breakdowns ---------------------------------------------------
 
 

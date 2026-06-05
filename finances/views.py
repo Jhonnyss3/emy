@@ -415,6 +415,7 @@ def forecast(request):
         )
     )
     months = []
+    running = Decimal("0")
     for i in range(6):
         ref = _add_months(base, i)
         last_day = calendar.monthrange(ref.year, ref.month)[1]
@@ -434,6 +435,12 @@ def forecast(request):
             date__month=ref.month,
         ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
 
+        # Committed expense = installments + recurring-generated outflows already
+        # scheduled (near-certain), as opposed to free/discretionary spending.
+        committed = scope_tx.filter(type=TransactionType.EXPENSE).filter(
+            Q(installment_group__isnull=False) | Q(recurring_source__isnull=False)
+        ).aggregate(total=Sum("amount"))["total"] or Decimal("0")
+
         # Add fixed bills that have not been materialized into this month yet,
         # so projected months are not double-counted against real transactions.
         materialized = set(
@@ -448,16 +455,40 @@ def forecast(request):
                 income += bill.amount
             else:
                 expense += bill.amount
+                committed += bill.amount
 
+        balance = income - expense - invested
+        running += balance
         months.append({
             "label": f"{MONTHS_PT[ref.month]} {ref.year}",
+            "short_label": MONTHS_PT[ref.month][:3],
             "month_param": ref.strftime("%Y-%m"),
             "income": income,
             "expense": expense,
-            "balance": income - expense - invested,
+            "committed": committed,
+            "free": expense - committed,
+            "committed_pct": (committed / expense * 100) if expense else 0,
+            "balance": balance,
+            "cumulative": running,
             "is_current": ref == base,
         })
-    return render(request, "finances/forecast.html", {"months": months})
+
+    # Insights over the 6-month window.
+    tightest = min(months, key=lambda m: m["balance"])
+    summary = {
+        "end_balance": months[-1]["cumulative"],
+        "avg_balance": sum((m["balance"] for m in months), Decimal("0")) / len(months),
+        "tightest_label": tightest["label"],
+        "tightest_balance": tightest["balance"],
+        "total_committed": sum((m["committed"] for m in months), Decimal("0")),
+    }
+    chart = [{"label": m["short_label"], "value": float(m["cumulative"])} for m in months]
+
+    return render(
+        request,
+        "finances/forecast.html",
+        {"months": months, "summary": summary, "chart": chart},
+    )
 
 
 @login_required
