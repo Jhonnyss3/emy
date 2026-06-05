@@ -3,10 +3,7 @@
 
 {% block content %}
 <div class="mb-5">
-    <button type="button" onclick="history.back()" aria-label="Voltar"
-            class="grid h-10 w-10 place-items-center rounded-full bg-emy-surface text-lg text-emy-ink-soft shadow-sm transition hover:text-emy-pink-600">
-        ←
-    </button>
+    {% include "finances/_back_button.html" %}
 </div>
 <form method="post" novalidate
       class="grid overflow-hidden rounded-[2.5rem] bg-emy-surface shadow-[0_30px_80px_-30px_rgba(42,26,54,0.45)] md:grid-cols-2">
@@ -111,7 +108,7 @@
 
         <div class="mt-8 flex">
             <button type="submit"
-                    class="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 px-5 py-3 text-sm font-bold text-white shadow-[0_14px_30px_-10px_rgba(139,92,246,0.6)] transition hover:opacity-95">
+                    class="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 px-5 py-3 text-sm font-bold text-white shadow-btn transition hover:opacity-95">
                 ✓ Salvar conta fixa
             </button>
         </div>

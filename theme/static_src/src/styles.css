@@ -42,9 +42,22 @@
   --color-emy-good: #10B981;
   --color-emy-bad: #E11D48;
 
+  --shadow-card: 0 20px 50px -30px rgba(42, 26, 54, 0.4);
+  --shadow-btn: 0 14px 30px -10px rgba(139, 92, 246, 0.6);
+
   --font-sans: "Plus Jakarta Sans", system-ui, sans-serif;
   --font-serif: "Instrument Serif", serif;
   --font-script: "Caveat", cursive;
+}
+
+/* Reusable Emy components — Petal variation */
+@layer components {
+  .card {
+    @apply rounded-[2rem] bg-emy-surface p-6 shadow-card sm:p-7;
+  }
+  .btn-primary {
+    @apply rounded-full bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 px-5 py-2.5 text-sm font-bold text-white shadow-btn transition hover:opacity-95;
+  }
 }
 
 /* Hide the scrollbar while keeping the area scrollable (app shell). */

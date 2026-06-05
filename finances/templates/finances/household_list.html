@@ -6,9 +6,7 @@
 <div class="mx-auto max-w-md">
     <div class="mb-6 flex items-center justify-between">
         <div class="flex items-center gap-3">
-            <button type="button" onclick="history.back()"
-                    class="grid h-10 w-10 place-items-center rounded-full bg-emy-surface text-lg text-emy-ink-soft shadow-sm transition hover:text-emy-pink-600"
-                    aria-label="Voltar">←</button>
+            {% include "finances/_back_button.html" %}
             <h1 class="text-3xl font-extrabold tracking-tight">Grupos</h1>
         </div>
         <a href="{% url 'finances:household_create' %}"

@@ -3,6 +3,7 @@ import { initScopeMenu } from "./modules/scopeMenu.js";
 import { initPasswordToggle } from "./modules/passwordToggle.js";
 import { initColorSwatches } from "./modules/colorSwatches.js";
 import { initMoneyMask } from "./modules/moneyMask.js";
+import { initCategoryDonut } from "./modules/categoryDonut.js";
 
 function init() {
     initPageLoader();
@@ -10,6 +11,7 @@ function init() {
     initPasswordToggle();
     initColorSwatches();
     initMoneyMask();
+    initCategoryDonut();
 }
 
 if (document.readyState === "loading") {

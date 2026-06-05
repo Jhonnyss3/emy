@@ -8,14 +8,14 @@
         <p class="mt-1 text-sm text-emy-ink-soft">Como você organiza seus lançamentos.</p>
     </div>
     <a href="{% url 'finances:category_create' %}"
-       class="rounded-full bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 px-5 py-2.5 text-sm font-bold text-white shadow-[0_14px_30px_-10px_rgba(139,92,246,0.6)] transition hover:opacity-95">
+       class="btn-primary">
         + Categoria
     </a>
 </div>
 
 <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
     {% for c in categories %}
-        <div class="rounded-[1.5rem] bg-emy-surface p-5 shadow-[0_20px_50px_-30px_rgba(42,26,54,0.4)] {% if not c.is_active %}opacity-60{% endif %}">
+        <div class="rounded-[1.5rem] bg-emy-surface p-5 shadow-card {% if not c.is_active %}opacity-60{% endif %}">
             <div class="flex items-start justify-between">
                 {% if c.icon %}
                     <img src="{{ c.icon.url }}" alt="{{ c.name }}"
@@ -43,12 +43,8 @@
             </div>
         </div>
     {% empty %}
-        <div class="rounded-[1.5rem] bg-emy-bg px-4 py-10 text-center sm:col-span-2 lg:col-span-3">
-            <p class="text-sm text-emy-ink-soft">Nenhuma categoria ainda.</p>
-            <a href="{% url 'finances:category_create' %}" class="mt-2 inline-block text-sm font-bold text-emy-pink-600 hover:underline">
-                Criar a primeira
-            </a>
-        </div>
+        {% url 'finances:category_create' as create_url %}
+        {% include "finances/_empty_state.html" with message="Nenhuma categoria ainda." action_url=create_url action_label="Criar a primeira" extra_classes="sm:col-span-2 lg:col-span-3" %}
     {% endfor %}
 </div>
 {% endblock %}

@@ -767,3 +767,22 @@ def test_dashboard_breaks_down_expenses_by_category_and_payment(client, user):
 
     by_payment = {row["label"]: row["total"] for row in resp.context["by_payment"]}
     assert by_payment == {"Cartão de crédito": Decimal("300"), "Pix": Decimal("100")}
+
+    # the donut reads its data from this json_script block
+    assert b'id="category-data"' in resp.content
+
+
+# --- brl filter -------------------------------------------------------------
+
+
+@pytest.mark.parametrize("value,expected", [
+    (Decimal("1234.5"), "R$ 1.234,50"),
+    (Decimal("0"), "R$ 0,00"),
+    (Decimal("-200"), "-R$ 200,00"),
+    (Decimal("1000000"), "R$ 1.000.000,00"),
+    (Decimal("9.999"), "R$ 10,00"),
+])
+def test_brl_filter_formats_brazilian_currency(value, expected):
+    from .templatetags.money import brl
+
+    assert brl(value) == expected

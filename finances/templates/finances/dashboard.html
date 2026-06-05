@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load money %}
 {% block title %}Início - Emy{% endblock %}
 
 {% block content %}
@@ -18,7 +19,7 @@
         </div>
     </div>
     <a href="{% url 'finances:transaction_create' %}"
-       class="rounded-full bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 px-5 py-2.5 text-sm font-bold text-white shadow-[0_14px_30px_-10px_rgba(139,92,246,0.6)] transition hover:opacity-95">
+       class="btn-primary">
         + Lançar
     </a>
 </div>
@@ -27,30 +28,30 @@
 <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
     <div class="col-span-2 rounded-[1.5rem] bg-gradient-to-br from-emy-pink-500 to-emy-purple-600 p-5 text-white shadow-[0_24px_60px_-24px_rgba(139,92,246,0.7)] lg:col-span-1">
         <p class="text-xs font-semibold uppercase tracking-wider text-white/70">Saldo · {{ month_label }}</p>
-        <p class="mt-2 text-3xl font-extrabold">R$ {{ balance|floatformat:2 }}</p>
+        <p class="mt-2 text-3xl font-extrabold">{{ balance|brl }}</p>
     </div>
     <a href="{% url 'finances:transaction_list' %}?type=income&month={{ ref_month|date:'Y-m' }}"
-       class="rounded-[1.5rem] bg-emy-surface p-5 shadow-[0_20px_50px_-30px_rgba(42,26,54,0.4)] transition hover:shadow-md">
+       class="rounded-[1.5rem] bg-emy-surface p-5 shadow-card transition hover:shadow-md">
         <p class="text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Entrou</p>
-        <p class="mt-2 text-2xl font-extrabold text-emy-good">R$ {{ income|floatformat:2 }}</p>
+        <p class="mt-2 text-2xl font-extrabold text-emy-good">{{ income|brl }}</p>
         <span class="mt-2 block text-xs font-bold text-emy-pink-600">Ver entradas →</span>
     </a>
     <a href="{% url 'finances:transaction_list' %}?type=expense&month={{ ref_month|date:'Y-m' }}"
-       class="rounded-[1.5rem] bg-emy-surface p-5 shadow-[0_20px_50px_-30px_rgba(42,26,54,0.4)] transition hover:shadow-md">
+       class="rounded-[1.5rem] bg-emy-surface p-5 shadow-card transition hover:shadow-md">
         <p class="text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Saiu</p>
-        <p class="mt-2 text-2xl font-extrabold text-emy-bad">R$ {{ expense|floatformat:2 }}</p>
+        <p class="mt-2 text-2xl font-extrabold text-emy-bad">{{ expense|brl }}</p>
         <span class="mt-2 block text-xs font-bold text-emy-pink-600">Ver saídas →</span>
     </a>
     <a href="{% url 'finances:investment_list' %}"
-       class="col-span-2 flex flex-col rounded-[1.5rem] bg-emy-surface p-5 shadow-[0_20px_50px_-30px_rgba(42,26,54,0.4)] transition hover:shadow-md lg:col-span-1">
+       class="col-span-2 flex flex-col rounded-[1.5rem] bg-emy-surface p-5 shadow-card transition hover:shadow-md lg:col-span-1">
         <p class="text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Investido</p>
-        <p class="mt-2 text-2xl font-extrabold text-emy-purple-600">R$ {{ invested|floatformat:2 }}</p>
+        <p class="mt-2 text-2xl font-extrabold text-emy-purple-600">{{ invested|brl }}</p>
         <span class="mt-auto pt-2 text-xs font-bold text-emy-pink-600">Ver objetivos →</span>
     </a>
 </div>
 
 <!-- Cartão de crédito -->
-<div class="mt-4 flex items-center justify-between gap-4 rounded-[1.5rem] bg-emy-surface p-5 shadow-[0_20px_50px_-30px_rgba(42,26,54,0.4)]">
+<div class="mt-4 flex items-center justify-between gap-4 rounded-[1.5rem] bg-emy-surface p-5 shadow-card">
     <div class="flex items-center gap-3">
         <span class="grid h-11 w-11 place-items-center rounded-2xl bg-emy-purple-100 text-xl">💳</span>
         <div>
@@ -58,12 +59,12 @@
             <p class="text-[11px] text-emy-ink-mute">Já incluído em Saiu</p>
         </div>
     </div>
-    <p class="text-2xl font-extrabold text-emy-purple-600">R$ {{ credit_card|floatformat:2 }}</p>
+    <p class="text-2xl font-extrabold text-emy-purple-600">{{ credit_card|brl }}</p>
 </div>
 
 <!-- Recentes + Listas -->
 <div class="mt-5 grid gap-5 lg:grid-cols-3">
-    <div class="rounded-[2rem] bg-emy-surface p-6 shadow-[0_20px_50px_-30px_rgba(42,26,54,0.4)] sm:p-7 {% if active_household %}lg:col-span-2{% else %}lg:col-span-3{% endif %}">
+    <div class="card {% if active_household %}lg:col-span-2{% else %}lg:col-span-3{% endif %}">
         <div class="flex items-center justify-between">
             <h2 class="text-lg font-extrabold tracking-tight">Lançamentos · {{ month_label }}</h2>
             <a href="{% url 'finances:transaction_list' %}?month={{ ref_month|date:'Y-m' }}" class="text-sm font-bold text-emy-pink-600 hover:underline">Ver todos</a>
@@ -82,23 +83,19 @@
                         <p class="text-xs text-emy-ink-mute">{{ t.category.name }} · {{ t.date|date:"d M Y" }}</p>
                     </div>
                     <span class="shrink-0 text-sm font-bold {% if t.type == 'income' %}text-emy-good{% else %}text-emy-bad{% endif %}">
-                        {% if t.type == 'income' %}+{% else %}−{% endif %} R$ {{ t.amount|floatformat:2 }}
+                        {% if t.type == 'income' %}+{% else %}−{% endif %} {{ t.amount|brl }}
                     </span>
                 </a>
             {% empty %}
-                <div class="flex flex-col items-center justify-center rounded-2xl bg-emy-bg px-4 py-12 text-center">
-                    <p class="text-sm text-emy-ink-soft">Nenhum lançamento ainda.</p>
-                    <a href="{% url 'finances:transaction_create' %}" class="mt-2 inline-block text-sm font-bold text-emy-pink-600 hover:underline">
-                        Lançar o primeiro
-                    </a>
-                </div>
+                {% url 'finances:transaction_create' as create_url %}
+                {% include "finances/_empty_state.html" with message="Nenhum lançamento ainda." action_url=create_url action_label="Lançar o primeiro" %}
             {% endfor %}
         </div>
     </div>
 
     {% if active_household %}
     <a href="{% url 'finances:list_index' %}"
-       class="flex flex-col justify-between rounded-[2rem] bg-gradient-to-br from-emy-pink-100 via-emy-pink-50 to-emy-purple-100 p-6 shadow-[0_20px_50px_-30px_rgba(42,26,54,0.4)] transition hover:shadow-md">
+       class="flex flex-col justify-between rounded-[2rem] bg-gradient-to-br from-emy-pink-100 via-emy-pink-50 to-emy-purple-100 p-6 shadow-card transition hover:shadow-md">
         <div>
             <span class="grid h-11 w-11 place-items-center rounded-2xl bg-white/70 text-xl">📝</span>
             <p class="mt-4 text-lg font-extrabold tracking-tight">Listas da casa</p>
@@ -111,38 +108,40 @@
 
 <!-- Gastos por categoria e por forma de pagamento -->
 <div class="mt-5 grid gap-5 lg:grid-cols-2">
-    <div class="rounded-[2rem] bg-emy-surface p-6 shadow-[0_20px_50px_-30px_rgba(42,26,54,0.4)] sm:p-7">
+    <div class="card">
         <h2 class="text-lg font-extrabold tracking-tight">Gastos por categoria · {{ month_label }}</h2>
-        <div class="mt-4 space-y-3">
-            {% for row in by_category %}
-                <div>
-                    <div class="flex items-center gap-2">
-                        <span class="h-3 w-3 shrink-0 rounded-full" style="background:{{ row.color }}"></span>
-                        <span class="min-w-0 flex-1 truncate text-sm font-semibold">{{ row.name }}</span>
-                        <span class="shrink-0 text-sm font-bold text-emy-bad">R$ {{ row.total|floatformat:2 }}</span>
-                    </div>
-                    <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-emy-bg">
-                        <span class="block h-full rounded-full bg-gradient-to-r from-emy-pink-500 to-emy-purple-500" style="width:{{ row.percent|floatformat:0 }}%"></span>
-                    </div>
+        {{ by_category|json_script:"category-data" }}
+        {% if by_category %}
+            <div class="mt-4 flex flex-col items-center gap-5 sm:flex-row sm:items-start">
+                <div id="category-donut" class="shrink-0"></div>
+                <div class="w-full flex-1 space-y-3">
+                    {% for row in by_category %}
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="h-3 w-3 shrink-0 rounded-full" style="background:{{ row.color }}"></span>
+                                <span class="min-w-0 flex-1 truncate text-sm font-semibold">{{ row.name }}</span>
+                                <span class="shrink-0 text-sm font-bold text-emy-bad">{{ row.total|brl }}</span>
+                            </div>
+                            {% include "finances/_progress_bar.html" with percent=row.percent|floatformat:0 track_class="mt-1.5 h-1.5" %}
+                        </div>
+                    {% endfor %}
                 </div>
-            {% empty %}
-                <p class="rounded-2xl bg-emy-bg px-4 py-8 text-center text-sm text-emy-ink-soft">Nenhuma despesa neste mês.</p>
-            {% endfor %}
-        </div>
+            </div>
+        {% else %}
+            <p class="mt-4 rounded-2xl bg-emy-bg px-4 py-8 text-center text-sm text-emy-ink-soft">Nenhuma despesa neste mês.</p>
+        {% endif %}
     </div>
 
-    <div class="rounded-[2rem] bg-emy-surface p-6 shadow-[0_20px_50px_-30px_rgba(42,26,54,0.4)] sm:p-7">
+    <div class="card">
         <h2 class="text-lg font-extrabold tracking-tight">Gastos por forma de pagamento · {{ month_label }}</h2>
         <div class="mt-4 space-y-3">
             {% for row in by_payment %}
                 <div>
                     <div class="flex items-center gap-2">
                         <span class="min-w-0 flex-1 truncate text-sm font-semibold">{{ row.label }}</span>
-                        <span class="shrink-0 text-sm font-bold text-emy-bad">R$ {{ row.total|floatformat:2 }}</span>
+                        <span class="shrink-0 text-sm font-bold text-emy-bad">{{ row.total|brl }}</span>
                     </div>
-                    <div class="mt-1.5 h-1.5 overflow-hidden rounded-full bg-emy-bg">
-                        <span class="block h-full rounded-full bg-gradient-to-r from-emy-pink-500 to-emy-purple-500" style="width:{{ row.percent|floatformat:0 }}%"></span>
-                    </div>
+                    {% include "finances/_progress_bar.html" with percent=row.percent|floatformat:0 track_class="mt-1.5 h-1.5" %}
                 </div>
             {% empty %}
                 <p class="rounded-2xl bg-emy-bg px-4 py-8 text-center text-sm text-emy-ink-soft">Nenhuma despesa neste mês.</p>

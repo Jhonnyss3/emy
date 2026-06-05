@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load money %}
 {% block title %}Previsão - Emy{% endblock %}
 
 {% block content %}
@@ -10,19 +11,19 @@
 <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
     {% for m in months %}
         <a href="{% url 'finances:dashboard' %}?month={{ m.month_param }}"
-           class="block rounded-[1.5rem] p-5 shadow-[0_20px_50px_-30px_rgba(42,26,54,0.4)] transition hover:shadow-md
+           class="block rounded-[1.5rem] p-5 shadow-card transition hover:shadow-md
            {% if m.is_current %}bg-gradient-to-br from-emy-pink-500 to-emy-purple-600 text-white{% else %}bg-emy-surface{% endif %}">
             <div class="flex items-center justify-between">
                 <p class="text-sm font-bold {% if not m.is_current %}text-emy-ink{% endif %}">{{ m.label }}</p>
                 {% if m.is_current %}<span class="rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider">Atual</span>{% endif %}
             </div>
             <p class="mt-3 text-2xl font-extrabold {% if m.is_current %}text-white{% elif m.balance < 0 %}text-emy-bad{% else %}text-emy-good{% endif %}">
-                R$ {{ m.balance|floatformat:2 }}
+                {{ m.balance|brl }}
             </p>
             <p class="text-xs {% if m.is_current %}text-white/70{% else %}text-emy-ink-mute{% endif %}">saldo previsto</p>
             <div class="mt-4 flex items-center justify-between text-xs font-semibold {% if m.is_current %}text-white/90{% else %}text-emy-ink-soft{% endif %}">
-                <span>↑ R$ {{ m.income|floatformat:2 }}</span>
-                <span>↓ R$ {{ m.expense|floatformat:2 }}</span>
+                <span>↑ {{ m.income|brl }}</span>
+                <span>↓ {{ m.expense|brl }}</span>
             </div>
         </a>
     {% endfor %}

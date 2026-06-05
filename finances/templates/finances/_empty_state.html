@@ -1,0 +1,6 @@
+<div class="rounded-2xl bg-emy-bg px-4 py-10 text-center {{ extra_classes }}">
+    <p class="text-sm text-emy-ink-soft">{{ message }}</p>
+    {% if action_url %}
+        <a href="{{ action_url }}" class="mt-2 inline-block text-sm font-bold text-emy-pink-600 hover:underline">{{ action_label }}</a>
+    {% endif %}
+</div>

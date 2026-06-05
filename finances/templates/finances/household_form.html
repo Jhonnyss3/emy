@@ -5,9 +5,7 @@
 {% block content %}
 <div class="mx-auto max-w-md">
     <div class="mb-6 flex items-center gap-3">
-        <button type="button" onclick="history.back()"
-                class="grid h-10 w-10 place-items-center rounded-full bg-emy-surface text-lg text-emy-ink-soft shadow-sm transition hover:text-emy-pink-600"
-                aria-label="Voltar">←</button>
+        {% include "finances/_back_button.html" %}
         <h1 class="text-3xl font-extrabold tracking-tight">{{ title }}</h1>
     </div>
 
@@ -20,7 +18,7 @@
             {% for error in form.name.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
         </div>
         <button type="submit"
-                class="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 px-4 py-3.5 text-sm font-bold text-white shadow-[0_14px_30px_-10px_rgba(139,92,246,0.6)] transition hover:opacity-95">
+                class="mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 px-4 py-3.5 text-sm font-bold text-white shadow-btn transition hover:opacity-95">
             {{ submit_label|default:"Criar grupo" }} <span aria-hidden="true">→</span>
         </button>
     </form>

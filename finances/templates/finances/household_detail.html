@@ -6,9 +6,7 @@
 <div class="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
     <div>
         <div class="mb-6 flex items-center gap-3">
-            <button type="button" onclick="history.back()"
-                    class="grid h-10 w-10 place-items-center rounded-full bg-emy-surface text-lg text-emy-ink-soft shadow-sm transition hover:text-emy-pink-600"
-                    aria-label="Voltar">←</button>
+            {% include "finances/_back_button.html" %}
             <h1 class="text-3xl font-extrabold tracking-tight">{{ household.name }}</h1>
         </div>
 
