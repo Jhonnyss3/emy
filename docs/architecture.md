@@ -29,9 +29,11 @@ emy/
 │   ├── context_processors.py  # scope: active_household + user_households nos templates
 │   ├── admin.py          # CategoryAdmin, TransactionAdmin, HouseholdAdmin, HouseholdMembershipAdmin
 │   ├── urls.py           # rotas do app (app_name = "finances")
+│   ├── templatetags/     # money.py — filtro `brl` (dinheiro pt-BR)
+│   ├── static/           # favicon.svg (logo Emy)
 │   ├── tests.py          # testes do app (pytest)
 │   ├── migrations/
-│   └── templates/        # base.html, finances/, registration/
+│   └── templates/        # base.html, finances/ (+ partials _*.html), registration/
 ├── theme/                # App do django-tailwind (fonte + build do CSS)
 ├── frontend/             # Fonte (src/) e build (dist/) do JS — Vite
 ├── docs/                 # Esta documentação
@@ -91,9 +93,9 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a
 | `register` | `register` | Cadastro via `RegistrationForm` (e-mail); login automático; redireciona para `profile_edit`. |
 | `profile_edit` | `finances:profile_edit` | Cria/edita o `Profile` do usuário; é a tela aberta logo após o cadastro. |
 | `scope_switch` | `finances:scope_switch` | Troca o escopo ativo (pessoal ou grupo) na sessão. |
-| `dashboard` | `finances:dashboard` | Resumo do mês selecionado (`?month=AAAA-MM`) + lançamentos do mês; materializa as contas fixas do mês. |
+| `dashboard` | `finances:dashboard` | Resumo do mês selecionado (`?month=AAAA-MM`) + lançamentos do mês; materializa as contas fixas. Inclui total no cartão de crédito e recortes de despesa por categoria (`by_category`, alimenta o donut) e por forma de pagamento (`by_payment`). |
 | `forecast` | `finances:forecast` | Previsão dos próximos 6 meses (transações reais + contas fixas projetadas, sem dupla contagem). |
-| `transaction_list` | `finances:transaction_list` | Lista as transações do mês selecionado (`?month=`); filtro por tipo via `?type=income\|expense`; materializa as contas fixas do mês. |
+| `transaction_list` | `finances:transaction_list` | Lista as transações do mês (`?month=`) com filtros combináveis (AND): `?type=`, `?category=<pk>`, `?payment_method=`, busca `?q=`; calcula o resumo (Entrou/Saiu/Saldo) do conjunto filtrado; materializa as contas fixas. |
 | `transaction_create` | `finances:transaction_create` | Cria transação no escopo ativo. |
 | `transaction_update` | `finances:transaction_update` | Edita transação dentro do escopo. |
 | `transaction_delete` | `finances:transaction_delete` | Exclui transação após confirmação via POST. |

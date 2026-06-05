@@ -101,3 +101,21 @@ model → form → view → url → template
   pré-popula `first_name`/`last_name` com os valores atuais do `User`. O
   `save()` grava o `Profile` e o `User` na mesma chamada. Widgets:
   `birth_date` (`type=date`), `phone` (placeholder).
+
+## Front-end (componentes)
+
+Convenções detalhadas em [frontend.md](frontend.md). Em resumo, ao escrever
+templates/JS:
+
+- **Reaproveitar antes de copiar:** classes de componente (`.card`,
+  `.btn-primary`, `shadow-card`/`shadow-btn`), partials (`_back_button`,
+  `_empty_state`, `_progress_bar`, `_category_select`) e o filtro `brl`
+  (`{{ valor|brl }}` para dinheiro, com `{% load money %}`).
+- **Componentes de seleção sempre como widget**, nunca o controle nativo cru —
+  todo `<select>` é enriquecido pelo módulo `selectWidget`. Vale também para
+  futuros toggles/checkboxes (mesma abordagem de widget + tokens Emy).
+- **Select de dado dinâmico** (criado pelo usuário) **sempre** oferece a opção de
+  **criar** na listagem do widget (`data-create-url`/`data-create-label`, ou
+  link fixo como no `_category_select.html`); enums estáticos não.
+- Recompilar os artefatos ao mexer em UI: `tailwind build` (CSS) e
+  `npm run build` (JS).

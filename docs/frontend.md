@@ -11,7 +11,11 @@
 - Fonte do CSS: `theme/static_src/src/styles.css` — contém
   `@import "tailwindcss"`, a diretiva `@source` que faz o Tailwind escanear
   os `.html/.py/.js` do projeto, um bloco `@theme` com os tokens de design
-  Emy (ver abaixo) e um `@layer utilities` com a utility `.no-scrollbar`
+  Emy (cores, fontes e as **sombras nomeadas** `--shadow-card` e `--shadow-btn`,
+  usadas como `shadow-card`/`shadow-btn` em vez das sombras arbitrárias antigas),
+  um `@layer components` com as classes reutilizáveis `.card`
+  (`bg-emy-surface` arredondado com `shadow-card`) e `.btn-primary` (botão
+  gradiente rosa→roxo), e um `@layer utilities` com a utility `.no-scrollbar`
   (esconde a barra de rolagem mantendo o scroll — usada no app shell).
 - CSS compilado: `theme/static/css/dist/styles.css` — artefato de build, está
   no `.gitignore`; o build precisa rodar no deploy. Na imagem Docker o
@@ -45,7 +49,18 @@
     `.color-swatch[data-color]` setam o `<input type="color">`);
   - `moneyMask` — máscara de moeda (campo visível formatado + `<input hidden>`
     com o valor numérico), via `data-money-display`/`data-money-target` (usado no
-    campo Meta de investimento).
+    campo Meta de investimento);
+  - `categoryDonut` — desenha um donut (SVG puro, sem lib) de gastos por
+    categoria no dashboard, lendo os dados de um `{% json_script %}`
+    (`#category-data`);
+  - `categorySelect` — dropdown customizado de categoria nos forms de lançamento
+    e conta fixa (`[data-category-select]`): bolinha de cor, escreve no
+    `<input hidden name="category">` e **filtra pela aba Despesa/Receita**
+    selecionada, limpando a escolha incompatível;
+  - `filterForm` — auto-submete o form de filtros ao mudar um controle marcado
+    com `data-autosubmit` (usado na lista de lançamentos);
+  - `selectWidget` — **enriquece todo `<select>` nativo** num dropdown
+    estilizado (ver seção **Componentes de seleção**).
   Cada módulo é guard-claused, então o bundle único roda em qualquer página.
 - Build: `npm run build` gera `frontend/dist/` (bundle + `manifest.json`) —
   **artefato de build, no `.gitignore`**. **Recompilar sempre que mexer em JS**
@@ -61,6 +76,67 @@
   coleta o `dist` e o WhiteNoise versiona/serve em produção.
 - Na imagem Docker, um stage `assets` (Node) roda `npm ci && npm run build` e
   copia o `dist` antes do `collectstatic`.
+
+## Componentes reutilizáveis
+
+### Classes de componente (`@layer components`)
+
+Padrões repetidos viram classe em `styles.css`, não utilitário copiado:
+
+- `.card` — card de conteúdo (`bg-emy-surface` arredondado + `shadow-card`).
+- `.btn-primary` — botão de ação principal (gradiente rosa→roxo, pill, branco).
+- Sombras nomeadas `shadow-card` / `shadow-btn` (tokens `@theme`) substituem as
+  sombras arbitrárias longas.
+
+Botões de tamanho/contexto diferente (submits dos forms etc.) seguem como
+utilitários; a classe cobre o caso canônico.
+
+### Partials (`{% include %}`)
+
+Trechos de markup repetidos viram partial parametrizado em `finances/templates/finances/`:
+
+- `_back_button.html` — botão circular "Voltar" (`history.back()`), usado nos
+  forms e telas com título.
+- `_empty_state.html` — estado vazio centralizado; aceita `message`,
+  `action_url`, `action_label` e `extra_classes`.
+- `_progress_bar.html` — barra de progresso; aceita `percent` e `track_class`
+  (altura/margem).
+- `_category_select.html` — dropdown de categoria dos forms (ver
+  **Componentes de seleção**).
+
+### Formatação de dinheiro (`brl`)
+
+Valores monetários usam o filtro `brl` (templatetag em
+`finances/templatetags/money.py`): `{{ valor|brl }}` → `R$ 1.234,56` (pt-BR,
+com milhar e sinal). Carregar com `{% load money %}` no template. Substitui o
+antigo `R$ {{ x|floatformat:2 }}`.
+
+## Componentes de seleção e dados dinâmicos
+
+> **Regra:** todo componente de seleção é um **widget estilizado** no padrão
+> Emy — nunca o controle nativo cru. Vale para os dropdowns de hoje e para
+> futuros toggles/checkboxes (que devem adotar a mesma abordagem de widget +
+> tokens Emy quando criados).
+
+- **Todo `<select>` nativo vira widget** automaticamente pelo módulo
+  `selectWidget`: o `<select>` é escondido (segue como fonte do valor para o
+  submit e dispara `change`), e o JS desenha um botão + painel estilizados,
+  herdando as classes do `<select>` para combinar com o contexto. Opções com
+  `data-color` ganham bolinha de cor. Como o nativo permanece no DOM, o
+  `data-autosubmit` (auto-submit de filtros) continua funcionando.
+- **Exceções já-widget:** o dropdown de categoria dos forms
+  (`_category_select.html` + módulo `categorySelect`, com filtro por tipo) e o
+  seletor de escopo no header (`<details>` em `base.html`) já são widgets no
+  mesmo padrão visual — não usam o `selectWidget` genérico.
+- **Regra de dado dinâmico (criado pelo usuário):** todo select de dado
+  dinâmico (ex.: categorias) deve **sempre** oferecer, na própria listagem do
+  widget, a opção de **criar um novo** — não só quando a lista está vazia. No
+  `selectWidget` genérico isso vem das data-attrs `data-create-url`
+  (obrigatória) e `data-create-label` (opcional), que adicionam um item "+ Criar
+  …" no rodapé do painel. No `_category_select.html` o link "Criar nova
+  categoria" é fixo no rodapé. Selects de **enum estático** (ex.: forma de
+  pagamento) **não** recebem esse item. O mesmo espírito vale para o seletor de
+  escopo, que sempre traz "Criar novo grupo".
 
 ## Design tokens — Emy / Petal
 
@@ -131,10 +207,11 @@ pelo app `finances`, que tem o seu próprio `base.html`.
 | `finances/household_list.html` | Lista dos grupos do usuário + botão "Novo grupo". |
 | `finances/household_form.html` | Criação/edição de grupo (nome); rótulo do botão via `submit_label`. |
 | `finances/household_detail.html` | Membros do grupo; o dono edita/exclui o grupo (ações no topo), adiciona membro por e-mail e remove membros. |
-| `finances/dashboard.html` | Cabeçalho (saudação + navegação por mês + "+ Lançar"), linha de 4 cards de stat (Saldo destaque / Entrou / Saiu / Investido) do mês selecionado e área inferior com lançamentos do mês (selo "2/12" nas parcelas) + card "Listas da casa" (em grupo). Layout 50/50 no desktop. |
+| `finances/dashboard.html` | Cabeçalho (saudação + navegação por mês + "+ Lançar"), linha de 4 cards de stat (Saldo destaque / Entrou / Saiu / Investido), card do total no **cartão de crédito** do mês, lançamentos do mês (selo "2/12") + card "Listas da casa" (em grupo), e dois recortes de despesa do mês: **gastos por categoria** (com **donut** SVG) e **por forma de pagamento**. Layout 50/50 no desktop. |
 | `finances/forecast.html` | Previsão dos próximos 6 meses em cards (saldo previsto + entrou/saiu); cada card abre o mês no dashboard; mês atual em gradiente. |
-| `finances/transaction_list.html` | Navegação por mês + pills de filtro por tipo (preservam o mês) + atalho "Contas fixas" + lista de transações (selo "2/12" nas parcelas). |
-| `finances/transaction_form.html` | Card dividido: toggle Despesa/Receita, valor grande, pills de categoria, data, método, parcelas (só na criação), observações. |
+| `finances/transaction_list.html` | Layout 50/50: **painel de filtros + resumo** à esquerda (fixo no desktop — navegação por mês, resumo Entrou/Saiu/Saldo do período filtrado, filtros combináveis de tipo/categoria/forma de pagamento/busca, "Contas fixas" e "Limpar filtros") e a lista de transações à direita (selo "2/12"). Os filtros preservam o mês e auto-submetem. |
+| `finances/transaction_form.html` | Card dividido: toggle Despesa/Receita, valor grande, **dropdown de categoria** (widget filtrado por tipo), data, método, parcelas (só na criação), observações. |
+| `finances/_back_button.html`, `_empty_state.html`, `_progress_bar.html`, `_category_select.html` | Partials reutilizáveis (ver **Componentes reutilizáveis** e **Componentes de seleção**). |
 | `finances/recurring_list.html` | Grid de cards das contas fixas (valor, dia, ativa/pausada) + ações. |
 | `finances/recurring_form.html` | Card dividido de conta fixa (tipo, valor mensal, categoria, a partir de, método, ativa). |
 | `finances/category_list.html` | Grid de cards de categoria. |
@@ -198,14 +275,25 @@ campo Meta de investimento ganhou **máscara de moeda**, os cards "Entrou/Saiu"
 do dashboard viraram atalhos para a lista filtrada por tipo, e o JS inline foi
 migrado para o **Vite** (ver seção **JavaScript / Vite**).
 
+A leva mais recente (UI v0.2): o dashboard ganhou o total no **cartão de
+crédito** e os recortes de **gastos por categoria** (com **donut** SVG) e por
+**forma de pagamento**; o dinheiro passou a usar o filtro **`brl`** (pt-BR
+`R$ 1.234,56`); padrões repetidos viraram **classes de componente**
+(`.card`/`.btn-primary`, sombras nomeadas) e **partials**
+(`_back_button`/`_empty_state`/`_progress_bar`); a **lista de lançamentos** foi
+redesenhada com painel de filtros + resumo; a seleção de categoria virou
+**dropdown widget** e **todo `<select>` passou a ser widget**
+(ver **Componentes de seleção**); e o app ganhou **favicon** SVG e o selo
+**Beta V0.2**.
+
 Pendências de UI conhecidas:
 
-- O dashboard não tem o bloco "gastos por categoria" (donut + lista) do mock:
-  cabe nos models atuais, mas exige um agregado por categoria na `dashboard`
-  view.
-- Valores monetários usam `floatformat:2` (ex.: `4832.17`); o formato pt-BR
-  (`4.832,17`) depende de configuração de locale. (Os labels de `choices` já
-  estão em pt-BR — `get_*_display` devolve português direto.)
+- Nenhuma das anteriores em aberto (donut e formato pt-BR já entregues). Itens do
+  mock sem model (Cartões/faturas, Metas, Insights, Transferência) seguem fora
+  de escopo.
 
-Ao criar template novo, usar classes Tailwind e os tokens Emy. Ao editar um
-existente, manter coerência com o padrão Petal já aplicado.
+Ao criar template novo, usar classes Tailwind e os tokens Emy, reaproveitando as
+**classes de componente** (`.card`, `.btn-primary`), os **partials** e o filtro
+**`brl`**. Componentes de seleção sempre como **widget** (ver **Componentes de
+seleção**); selects de dado dinâmico sempre com a opção de **criar**. Ao editar
+um existente, manter coerência com o padrão Petal já aplicado.

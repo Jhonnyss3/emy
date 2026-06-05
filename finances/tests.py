@@ -592,6 +592,41 @@ def test_transaction_form_renders_category_dropdown_with_types(client, user):
     assert 'data-type="income"' in html
 
 
+def test_transaction_list_combines_filters_and_summarizes(client, user):
+    market = Category.objects.create(user=user, name="Mercado", type="expense")
+    fun = Category.objects.create(user=user, name="Lazer", type="expense")
+    day = timezone.localdate().replace(day=10)
+    Transaction.objects.create(
+        user=user, category=market, description="Compra grande",
+        amount=Decimal("300"), date=day, type="expense", payment_method="credit_card",
+    )
+    Transaction.objects.create(
+        user=user, category=market, description="Compra pequena",
+        amount=Decimal("50"), date=day, type="expense", payment_method="pix",
+    )
+    Transaction.objects.create(
+        user=user, category=fun, description="Cinema",
+        amount=Decimal("80"), date=day, type="expense", payment_method="pix",
+    )
+    client.force_login(user)
+    month = day.strftime("%Y-%m")
+
+    # category + payment filters combine (AND)
+    resp = client.get(reverse("finances:transaction_list"), {
+        "month": month, "category": str(market.pk), "payment_method": "pix",
+    })
+    descriptions = [t.description for t in resp.context["transactions"]]
+    assert descriptions == ["Compra pequena"]
+    assert resp.context["summary_expense"] == Decimal("50")
+    assert resp.context["has_filters"] is True
+
+    # text search is case-insensitive on description
+    resp2 = client.get(reverse("finances:transaction_list"), {"month": month, "q": "compra"})
+    found = {t.description for t in resp2.context["transactions"]}
+    assert found == {"Compra grande", "Compra pequena"}
+    assert resp2.context["summary_expense"] == Decimal("350")
+
+
 def test_installments_split_across_months(client, user):
     cat = Category.objects.create(user=user, name="Eletro", type="expense")
     client.force_login(user)

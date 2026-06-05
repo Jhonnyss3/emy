@@ -18,10 +18,14 @@
                 <span class="truncate">{{ cat.name }}</span>
             </button>
         {% empty %}
-            <p class="px-3 py-2 text-sm text-emy-ink-soft">
-                Nenhuma categoria ativa.
-                <a href="{% url 'finances:category_create' %}" class="font-bold text-emy-pink-600 hover:underline">Criar uma</a>
-            </p>
+            <p class="px-3 py-2 text-sm text-emy-ink-soft">Nenhuma categoria ativa.</p>
         {% endfor %}
+        <a href="{% url 'finances:category_create' %}"
+           class="mt-1 flex w-full items-center gap-2 rounded-xl border-t border-emy-line px-3 py-2 text-sm font-bold text-emy-pink-600 transition hover:bg-emy-bg">
+            <span class="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-emy-pink-100 text-emy-pink-600">
+                <svg class="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            </span>
+            Criar nova categoria
+        </a>
     </div>
 </div>

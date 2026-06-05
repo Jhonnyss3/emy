@@ -2,6 +2,7 @@ import calendar
 import uuid
 from datetime import date, timedelta
 from decimal import ROUND_DOWN, Decimal
+from urllib.parse import urlencode
 
 from django.contrib import messages
 from django.contrib.auth import login
@@ -461,7 +462,7 @@ def forecast(request):
 
 @login_required
 def transaction_list(request):
-    """List the selected month's transactions in the active scope, optionally by type."""
+    """List the selected month's transactions in the active scope, with combinable filters."""
     household = get_active_household(request)
     month = _resolve_month(request)
     ref = month["ref_month"]
@@ -470,14 +471,64 @@ def transaction_list(request):
         date__year=ref.year,
         date__month=ref.month,
     ).select_related("category")
+
     type_filter = request.GET.get("type")
     if type_filter in TransactionType.values:
         transactions = transactions.filter(type=type_filter)
 
+    category_filter = request.GET.get("category", "")
+    if category_filter.isdigit():
+        transactions = transactions.filter(category_id=int(category_filter))
+
+    payment_filter = request.GET.get("payment_method", "")
+    if payment_filter in PaymentMethod.values:
+        transactions = transactions.filter(payment_method=payment_filter)
+
+    query = request.GET.get("q", "").strip()
+    if query:
+        transactions = transactions.filter(description__icontains=query)
+
+    # Summary of the filtered set (answers "how much did I spend on this?").
+    income = transactions.filter(type=TransactionType.INCOME).aggregate(
+        total=Sum("amount")
+    )["total"] or Decimal("0")
+    expense = transactions.filter(type=TransactionType.EXPENSE).aggregate(
+        total=Sum("amount")
+    )["total"] or Decimal("0")
+
+    # Active filters carried by the month navigation links (month is set separately).
+    active = {
+        key: value
+        for key, value in (
+            ("type", type_filter if type_filter in TransactionType.values else ""),
+            ("category", category_filter if category_filter.isdigit() else ""),
+            ("payment_method", payment_filter if payment_filter in PaymentMethod.values else ""),
+            ("q", query),
+        )
+        if value
+    }
+    filter_qs = ("&" + urlencode(active)) if active else ""
+
     return render(
         request,
         "finances/transaction_list.html",
-        {**month, "transactions": transactions, "type_filter": type_filter},
+        {
+            **month,
+            "transactions": transactions,
+            "type_filter": type_filter,
+            "category_filter": category_filter,
+            "payment_filter": payment_filter,
+            "query": query,
+            "categories": Category.objects.in_scope(request.user, household).filter(
+                is_active=True
+            ),
+            "payment_methods": PaymentMethod.choices,
+            "summary_income": income,
+            "summary_expense": expense,
+            "summary_balance": income - expense,
+            "has_filters": bool(active),
+            "filter_qs": filter_qs,
+        },
     )
 
 

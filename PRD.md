@@ -129,6 +129,10 @@ usuários sobre a mesma carteira (conta compartilhada).
 | RF32 | Ao lançar, o usuário pode parcelar a compra em N vezes; o sistema gera uma saída em cada mês (valor total dividido). | Alta |
 | RF33 | O usuário pode cadastrar contas fixas (recorrentes sem fim, ex.: aluguel) que aparecem automaticamente em cada mês até serem pausadas. | Alta |
 | RF34 | O sistema exibe uma previsão dos próximos meses, considerando parcelas e contas fixas. | Média |
+| RF35 | O dashboard exibe o total gasto no cartão de crédito no mês (subconjunto das despesas). | Média |
+| RF36 | O dashboard exibe os gastos do mês por categoria (com gráfico donut) e por forma de pagamento. | Média |
+| RF37 | A lista de lançamentos oferece filtros combináveis por tipo, categoria, forma de pagamento e busca por descrição, com resumo (Entrou/Saiu/Saldo) do período filtrado. | Média |
+| RF38 | Todo componente de seleção é um widget estilizado; selects de dados criados pelo usuário oferecem sempre a opção de criar um novo na própria listagem. | Baixa |
 
 ### 6.1 Flowchart Mermaid — fluxos de UX
 
@@ -591,12 +595,20 @@ Títulos de página: `text-3xl font-extrabold tracking-tight`. Auxiliar:
 ### 9.4 Princípios de componentes
 
 - **Botões / destaques primários:** gradiente rosa→roxo, `rounded-full` ou
-  `rounded-2xl`, texto branco, sombra suave.
+  `rounded-2xl`, texto branco, sombra suave. Caso canônico na classe
+  `.btn-primary`.
 - **Cards:** `bg-emy-surface`, cantos bem arredondados (`rounded-[1.5rem]` a
-  `rounded-[2.5rem]`), sombra difusa (`shadow-[...]`).
+  `rounded-[2.5rem]`), sombra difusa (`shadow-card`). Caso canônico na classe
+  `.card`.
 - **Inputs:** `rounded-2xl bg-emy-bg`, foco em `ring-2 ring-emy-pink-400`.
   Formulários renderizam campo a campo; `type` e `category` viram radios
   estilizados (toggle / pills).
+- **Componentes de seleção:** sempre **widget estilizado** (nunca `<select>`
+  nativo cru) — o módulo `selectWidget` enriquece todo `<select>`; o dropdown de
+  categoria e o seletor de escopo já são widgets. Selects de dado dinâmico
+  (criado pelo usuário) sempre trazem a opção de **criar** na listagem. A mesma
+  abordagem de widget vale para futuros toggles/checkboxes. Detalhe técnico em
+  `docs/frontend.md`.
 - **Layout (app shell):** a página é fixa em `100dvh` e não rola; só a área de
   conteúdo rola por dentro, sem barra visível (`.no-scrollbar`). Mobile-first
   com `dvh`.

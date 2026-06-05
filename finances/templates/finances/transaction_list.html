@@ -4,86 +4,139 @@
 
 {% block content %}
 <div class="lg:grid lg:grid-cols-2 lg:gap-6 lg:items-start">
-<div>
-<div class="mb-6 flex flex-wrap items-center justify-between gap-3">
-    <div>
-        <h1 class="text-3xl font-extrabold tracking-tight">Lançamentos</h1>
-        <div class="mt-2 flex items-center gap-2">
-            <a href="?month={{ prev_month }}{% if type_filter %}&type={{ type_filter }}{% endif %}" aria-label="Mês anterior"
-               class="grid h-9 w-9 place-items-center rounded-full bg-emy-surface text-lg text-emy-ink-soft shadow-sm transition hover:text-emy-pink-600">‹</a>
-            <span class="min-w-[8.5rem] text-center text-sm font-bold text-emy-ink">{{ month_label }}</span>
-            <a href="?month={{ next_month }}{% if type_filter %}&type={{ type_filter }}{% endif %}" aria-label="Próximo mês"
-               class="grid h-9 w-9 place-items-center rounded-full bg-emy-surface text-lg text-emy-ink-soft shadow-sm transition hover:text-emy-pink-600">›</a>
-            {% if not is_current_month %}
-                <a href="{% url 'finances:transaction_list' %}{% if type_filter %}?type={{ type_filter }}{% endif %}" class="ml-1 rounded-full px-3 py-1.5 text-xs font-bold text-emy-pink-600 hover:underline">Hoje</a>
-            {% endif %}
+
+<!-- Painel de filtros + resumo -->
+<aside class="card lg:sticky lg:top-4">
+    <div class="flex items-start justify-between gap-3">
+        <h1 class="text-2xl font-extrabold tracking-tight">Lançamentos</h1>
+        <a href="{% url 'finances:transaction_create' %}" class="btn-primary">+ Lançamento</a>
+    </div>
+
+    <!-- Navegação por mês -->
+    <div class="mt-4 flex items-center gap-2">
+        <a href="?month={{ prev_month }}{{ filter_qs }}" aria-label="Mês anterior"
+           class="grid h-9 w-9 place-items-center rounded-full bg-emy-bg text-lg text-emy-ink-soft transition hover:text-emy-pink-600">‹</a>
+        <span class="min-w-[8.5rem] flex-1 text-center text-sm font-bold text-emy-ink">{{ month_label }}</span>
+        <a href="?month={{ next_month }}{{ filter_qs }}" aria-label="Próximo mês"
+           class="grid h-9 w-9 place-items-center rounded-full bg-emy-bg text-lg text-emy-ink-soft transition hover:text-emy-pink-600">›</a>
+        {% if not is_current_month %}
+            <a href="{% url 'finances:transaction_list' %}?{{ filter_qs|slice:'1:' }}" class="rounded-full px-2 py-1 text-xs font-bold text-emy-pink-600 hover:underline">Hoje</a>
+        {% endif %}
+    </div>
+
+    <!-- Resumo do período filtrado -->
+    <div class="mt-4 grid grid-cols-3 gap-2">
+        <div class="rounded-2xl bg-emy-bg px-3 py-2.5 text-center">
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-emy-ink-mute">Entrou</p>
+            <p class="mt-0.5 text-sm font-extrabold text-emy-good">{{ summary_income|brl }}</p>
+        </div>
+        <div class="rounded-2xl bg-emy-bg px-3 py-2.5 text-center">
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-emy-ink-mute">Saiu</p>
+            <p class="mt-0.5 text-sm font-extrabold text-emy-bad">{{ summary_expense|brl }}</p>
+        </div>
+        <div class="rounded-2xl bg-emy-bg px-3 py-2.5 text-center">
+            <p class="text-[10px] font-semibold uppercase tracking-wider text-emy-ink-mute">Saldo</p>
+            <p class="mt-0.5 text-sm font-extrabold {% if summary_balance < 0 %}text-emy-bad{% else %}text-emy-good{% endif %}">{{ summary_balance|brl }}</p>
         </div>
     </div>
-    <div class="flex items-center gap-2">
-        <a href="{% url 'finances:recurring_list' %}"
-           class="rounded-full bg-emy-surface px-4 py-2.5 text-sm font-bold text-emy-ink-soft shadow-sm transition hover:text-emy-pink-600">
-            ↻ Contas fixas
-        </a>
-        <a href="{% url 'finances:transaction_create' %}"
-           class="btn-primary">
-            + Lançamento
-        </a>
+
+    <!-- Filtros -->
+    <form method="get" data-filter-form class="mt-5 space-y-3">
+        <input type="hidden" name="month" value="{{ ref_month|date:'Y-m' }}">
+
+        <div class="flex rounded-full bg-emy-bg p-1">
+            <label class="flex-1 cursor-pointer">
+                <input type="radio" name="type" value="" class="peer sr-only" data-autosubmit {% if not type_filter %}checked{% endif %}>
+                <span class="block rounded-full py-1.5 text-center text-sm font-semibold text-emy-ink-soft transition peer-checked:bg-gradient-to-br peer-checked:from-emy-pink-500 peer-checked:to-emy-purple-500 peer-checked:text-white">Todos</span>
+            </label>
+            <label class="flex-1 cursor-pointer">
+                <input type="radio" name="type" value="income" class="peer sr-only" data-autosubmit {% if type_filter == 'income' %}checked{% endif %}>
+                <span class="block rounded-full py-1.5 text-center text-sm font-semibold text-emy-ink-soft transition peer-checked:bg-emy-good peer-checked:text-white">Receitas</span>
+            </label>
+            <label class="flex-1 cursor-pointer">
+                <input type="radio" name="type" value="expense" class="peer sr-only" data-autosubmit {% if type_filter == 'expense' %}checked{% endif %}>
+                <span class="block rounded-full py-1.5 text-center text-sm font-semibold text-emy-ink-soft transition peer-checked:bg-emy-bad peer-checked:text-white">Despesas</span>
+            </label>
+        </div>
+
+        <select name="category" data-autosubmit
+                data-create-url="{% url 'finances:category_create' %}" data-create-label="Criar nova categoria"
+                class="w-full rounded-2xl bg-emy-bg px-4 py-2.5 text-sm font-semibold text-emy-ink-soft outline-none transition focus:ring-2 focus:ring-emy-pink-400">
+            <option value="">Todas as categorias</option>
+            {% for c in categories %}
+                <option value="{{ c.pk }}" data-color="{{ c.color }}" {% if category_filter == c.pk|stringformat:'s' %}selected{% endif %}>{{ c.name }}</option>
+            {% endfor %}
+        </select>
+
+        <select name="payment_method" data-autosubmit
+                class="w-full rounded-2xl bg-emy-bg px-4 py-2.5 text-sm font-semibold text-emy-ink-soft outline-none transition focus:ring-2 focus:ring-emy-pink-400">
+            <option value="">Todas as formas de pagamento</option>
+            {% for value, label in payment_methods %}
+                <option value="{{ value }}" {% if payment_filter == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+        </select>
+
+        <div class="flex items-center gap-2 rounded-2xl bg-emy-bg px-4 py-2.5 transition focus-within:ring-2 focus-within:ring-emy-pink-400">
+            <svg class="h-4 w-4 shrink-0 text-emy-ink-mute" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 3.4 9.82l3.64 3.64a.75.75 0 1 0 1.06-1.06l-3.64-3.64A5.5 5.5 0 0 0 9 3.5ZM5 9a4 4 0 1 1 8 0 4 4 0 0 1-8 0Z" clip-rule="evenodd"/></svg>
+            <input type="search" name="q" value="{{ query }}" placeholder="Buscar descrição…"
+                   class="w-full bg-transparent text-sm text-emy-ink outline-none placeholder:text-emy-ink-mute">
+        </div>
+    </form>
+
+    <div class="mt-4 flex items-center justify-between">
+        <a href="{% url 'finances:recurring_list' %}" class="text-sm font-bold text-emy-ink-soft transition hover:text-emy-pink-600">↻ Contas fixas</a>
+        {% if has_filters %}
+            <a href="?month={{ ref_month|date:'Y-m' }}" class="text-sm font-bold text-emy-pink-600 hover:underline">Limpar filtros</a>
+        {% endif %}
     </div>
-</div>
+</aside>
 
-<div class="mb-5 flex flex-wrap gap-2">
-    <a href="?month={{ ref_month|date:'Y-m' }}"
-       class="rounded-full px-4 py-2 text-sm font-semibold transition {% if not type_filter %}bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 text-white{% else %}bg-emy-surface text-emy-ink-soft hover:text-emy-pink-600{% endif %}">
-        Todos
-    </a>
-    <a href="?month={{ ref_month|date:'Y-m' }}&type=income"
-       class="rounded-full px-4 py-2 text-sm font-semibold transition {% if type_filter == 'income' %}bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 text-white{% else %}bg-emy-surface text-emy-ink-soft hover:text-emy-pink-600{% endif %}">
-        Receitas
-    </a>
-    <a href="?month={{ ref_month|date:'Y-m' }}&type=expense"
-       class="rounded-full px-4 py-2 text-sm font-semibold transition {% if type_filter == 'expense' %}bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 text-white{% else %}bg-emy-surface text-emy-ink-soft hover:text-emy-pink-600{% endif %}">
-        Despesas
-    </a>
-</div>
-</div>
-
+<!-- Lista -->
 <div class="mt-5 lg:mt-0">
-<div class="rounded-[2rem] bg-emy-surface p-4 shadow-card sm:p-5">
-    <div class="space-y-1">
-        {% for t in transactions %}
-            <div class="flex items-center gap-3 rounded-2xl px-3 py-3 transition hover:bg-emy-bg">
-                <a href="{% url 'finances:transaction_update' t.pk %}" class="flex min-w-0 flex-1 items-center gap-3">
-                    <span class="h-9 w-9 shrink-0 rounded-xl" style="background:{{ t.category.color }}"></span>
-                    <div class="min-w-0">
-                        <p class="truncate text-sm font-semibold">
-                            {{ t.description }}
-                            {% if t.installment_label %}<span class="ml-1 rounded-full bg-emy-purple-100 px-1.5 py-0.5 text-[10px] font-bold text-emy-purple-700">{{ t.installment_label }}</span>{% endif %}
-                        </p>
-                        <p class="truncate text-xs text-emy-ink-mute">
-                            {{ t.category.name }} · {{ t.get_payment_method_display }} · {{ t.date|date:"d M Y" }}
-                        </p>
+    <div class="card p-4 sm:p-5">
+        <div class="mb-2 flex items-center justify-between px-1">
+            <p class="text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">{{ transactions|length }} lançamento{{ transactions|length|pluralize }}</p>
+        </div>
+        <div class="space-y-1">
+            {% for t in transactions %}
+                <div class="flex items-center gap-3 rounded-2xl px-3 py-3 transition hover:bg-emy-bg">
+                    <a href="{% url 'finances:transaction_update' t.pk %}" class="flex min-w-0 flex-1 items-center gap-3">
+                        <span class="h-9 w-9 shrink-0 rounded-xl" style="background:{{ t.category.color }}"></span>
+                        <div class="min-w-0">
+                            <p class="truncate text-sm font-semibold">
+                                {{ t.description }}
+                                {% if t.installment_label %}<span class="ml-1 rounded-full bg-emy-purple-100 px-1.5 py-0.5 text-[10px] font-bold text-emy-purple-700">{{ t.installment_label }}</span>{% endif %}
+                            </p>
+                            <p class="truncate text-xs text-emy-ink-mute">
+                                {{ t.category.name }} · {{ t.get_payment_method_display }} · {{ t.date|date:"d M Y" }}
+                            </p>
+                        </div>
+                    </a>
+                    <span class="shrink-0 text-sm font-bold {% if t.type == 'income' %}text-emy-good{% else %}text-emy-bad{% endif %}">
+                        {% if t.type == 'income' %}+{% else %}−{% endif %} {{ t.amount|brl }}
+                    </span>
+                    <div class="flex shrink-0 items-center gap-2">
+                        <a href="{% url 'finances:transaction_update' t.pk %}"
+                           class="rounded-full px-2.5 py-1 text-xs font-bold text-emy-ink-soft transition hover:bg-emy-bg-warm hover:text-emy-pink-600">
+                            Editar
+                        </a>
+                        <a href="{% url 'finances:transaction_delete' t.pk %}"
+                           class="rounded-full px-2.5 py-1 text-xs font-bold text-emy-ink-soft transition hover:bg-emy-bad/10 hover:text-emy-bad">
+                            Excluir
+                        </a>
                     </div>
-                </a>
-                <span class="shrink-0 text-sm font-bold {% if t.type == 'income' %}text-emy-good{% else %}text-emy-bad{% endif %}">
-                    {% if t.type == 'income' %}+{% else %}−{% endif %} {{ t.amount|brl }}
-                </span>
-                <div class="flex shrink-0 items-center gap-2">
-                    <a href="{% url 'finances:transaction_update' t.pk %}"
-                       class="rounded-full px-2.5 py-1 text-xs font-bold text-emy-ink-soft transition hover:bg-emy-bg-warm hover:text-emy-pink-600">
-                        Editar
-                    </a>
-                    <a href="{% url 'finances:transaction_delete' t.pk %}"
-                       class="rounded-full px-2.5 py-1 text-xs font-bold text-emy-ink-soft transition hover:bg-emy-bad/10 hover:text-emy-bad">
-                        Excluir
-                    </a>
                 </div>
-            </div>
-        {% empty %}
-            {% url 'finances:transaction_create' as create_url %}
-            {% include "finances/_empty_state.html" with message="Nenhum lançamento encontrado." action_url=create_url action_label="Lançar o primeiro" %}
-        {% endfor %}
+            {% empty %}
+                {% if has_filters %}
+                    {% include "finances/_empty_state.html" with message="Nenhum lançamento bate com esses filtros." %}
+                {% else %}
+                    {% url 'finances:transaction_create' as create_url %}
+                    {% include "finances/_empty_state.html" with message="Nenhum lançamento encontrado." action_url=create_url action_label="Lançar o primeiro" %}
+                {% endif %}
+            {% endfor %}
+        </div>
     </div>
 </div>
-</div>
+
 </div>
 {% endblock %}
