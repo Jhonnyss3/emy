@@ -243,7 +243,9 @@ def register(request):
         form = RegistrationForm(request.POST)
         if form.is_valid():
             user = form.save()
-            login(request, user)
+            # Multiple auth backends (django-axes) are configured, so login()
+            # needs the backend to use for this session made explicit.
+            login(request, user, backend="django.contrib.auth.backends.ModelBackend")
             messages.success(request, "Conta criada! Complete seu perfil.")
             return redirect("finances:profile_edit")
     else:
