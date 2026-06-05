@@ -12,8 +12,9 @@
 
 O repositório não versiona: `__pycache__/` e `*.pyc`, `.venv/`, `db.sqlite3`,
 `/media/` e `/staticfiles/`, arquivos `.env*` (exceto `.env.example` e
-`.env.docker.example`), o CSS compilado em `theme/static/css/dist/`, e arquivos
-de IDE/OS.
+`.env.docker.example`), o CSS compilado em `theme/static/css/dist/`, as deps e o
+build do front (`node_modules/`, `frontend/dist/`), e arquivos de IDE/OS.
+O `package-lock.json` **é** versionado (lock do Vite).
 
 ## Migrations
 
@@ -47,17 +48,18 @@ de IDE/OS.
 - Produção roda no **Railway** a partir do `Dockerfile` (ver
   [getting-started.md](getting-started.md), seção "Docker e deploy"). Push na
   branch `main` do GitHub dispara o rebuild.
-- O build da imagem roda `tailwind build` + `collectstatic`; o `entrypoint.sh`
-  roda `migrate` no start. Não rodar `migrate` manualmente no deploy — o
-  entrypoint cuida disso.
+- O build da imagem roda o stage `assets` (`npm ci && npm run build`) e, no
+  runtime, `tailwind build` + `collectstatic`; o `entrypoint.sh` roda `migrate`
+  no start. Não rodar `migrate` manualmente no deploy — o entrypoint cuida disso.
 - Variáveis sensíveis ficam no painel do Railway, nunca no repositório.
 - Reproduzir o build localmente com `docker compose up --build` antes de
-  mudanças que toquem `Dockerfile`/`requirements.txt`.
+  mudanças que toquem `Dockerfile`/`requirements.txt`/`package.json`.
 
 ## Antes de cada release
 
 - Rodar `python manage.py check` (e `check --deploy` para produção) sem
   erros.
 - Rodar a suíte de testes (`pytest`). Os testes renderizam templates que
-  referenciam o CSS via manifest do WhiteNoise; rodar `tailwind build` +
-  `collectstatic` antes, senão falham com "Missing staticfiles manifest entry".
+  referenciam o CSS (manifest do WhiteNoise) e o JS (manifest do Vite); rodar
+  `npm run build`, `tailwind build` e `collectstatic` antes, senão falham com
+  "Missing staticfiles manifest entry" (CSS) ou erro de manifest do Vite.

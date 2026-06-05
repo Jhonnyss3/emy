@@ -233,7 +233,18 @@ def household_delete(request, pk):
             household.delete()
         messages.success(request, "Grupo excluído.")
         return redirect("finances:household_list")
-    return render(request, "finances/confirm_delete.html", {"object": household})
+    return render(
+        request,
+        "finances/confirm_delete.html",
+        {
+            "object": household,
+            "title": "Excluir grupo",
+            "warning": (
+                "Isso também apaga todas as categorias, lançamentos, contas "
+                "fixas, objetivos e listas do grupo, para todos os membros."
+            ),
+        },
+    )
 
 
 @login_required
@@ -490,59 +501,59 @@ def transaction_create(request):
                 )
             else:
                 form.save()
-                messages.success(request, "Transaction created.")
+                messages.success(request, "Lançamento criado.")
             return redirect("finances:transaction_list")
     else:
         form = TransactionForm(user=request.user, household=household)
     return render(
         request,
         "finances/transaction_form.html",
-        {"form": form, "title": "New transaction"},
+        {"form": form, "title": "Novo lançamento"},
     )
 
 
 @login_required
 def transaction_update(request, pk):
     household = get_active_household(request)
-    transaction = get_object_or_404(
+    entry = get_object_or_404(
         Transaction.objects.in_scope(request.user, household), pk=pk
     )
     if request.method == "POST":
         form = TransactionForm(
             request.POST,
-            instance=transaction,
+            instance=entry,
             user=request.user,
             household=household,
         )
         if form.is_valid():
             form.save()
-            messages.success(request, "Transaction updated.")
+            messages.success(request, "Lançamento atualizado.")
             return redirect("finances:transaction_list")
     else:
         form = TransactionForm(
-            instance=transaction, user=request.user, household=household
+            instance=entry, user=request.user, household=household
         )
     return render(
         request,
         "finances/transaction_form.html",
-        {"form": form, "title": "Edit transaction"},
+        {"form": form, "title": "Editar lançamento"},
     )
 
 
 @login_required
 def transaction_delete(request, pk):
     household = get_active_household(request)
-    transaction = get_object_or_404(
+    entry = get_object_or_404(
         Transaction.objects.in_scope(request.user, household), pk=pk
     )
     if request.method == "POST":
-        transaction.delete()
-        messages.success(request, "Transaction deleted.")
+        entry.delete()
+        messages.success(request, "Lançamento excluído.")
         return redirect("finances:transaction_list")
     return render(
         request,
         "finances/confirm_delete.html",
-        {"object": transaction, "title": "Delete transaction"},
+        {"object": entry, "title": "Excluir lançamento"},
     )
 
 
@@ -564,14 +575,14 @@ def category_create(request):
         )
         if form.is_valid():
             form.save()
-            messages.success(request, "Category created.")
+            messages.success(request, "Categoria criada.")
             return redirect("finances:category_list")
     else:
         form = CategoryForm(user=request.user, household=household)
     return render(
         request,
         "finances/category_form.html",
-        {"form": form, "title": "New category", "color_choices": CATEGORY_COLORS},
+        {"form": form, "title": "Nova categoria", "color_choices": CATEGORY_COLORS},
     )
 
 
@@ -591,7 +602,7 @@ def category_update(request, pk):
         )
         if form.is_valid():
             form.save()
-            messages.success(request, "Category updated.")
+            messages.success(request, "Categoria atualizada.")
             return redirect("finances:category_list")
     else:
         form = CategoryForm(
@@ -600,7 +611,7 @@ def category_update(request, pk):
     return render(
         request,
         "finances/category_form.html",
-        {"form": form, "title": "Edit category", "color_choices": CATEGORY_COLORS},
+        {"form": form, "title": "Editar categoria", "color_choices": CATEGORY_COLORS},
     )
 
 
@@ -614,16 +625,16 @@ def category_delete(request, pk):
         if category.transactions.exists() or category.recurring_transactions.exists():
             messages.error(
                 request,
-                "This category still has transactions and cannot be deleted.",
+                "Esta categoria ainda tem lançamentos e não pode ser excluída.",
             )
             return redirect("finances:category_list")
         category.delete()
-        messages.success(request, "Category deleted.")
+        messages.success(request, "Categoria excluída.")
         return redirect("finances:category_list")
     return render(
         request,
         "finances/confirm_delete.html",
-        {"object": category, "title": "Delete category"},
+        {"object": category, "title": "Excluir categoria"},
     )
 
 
@@ -709,8 +720,8 @@ def recurring_delete(request, pk):
 @login_required
 def investment_list(request):
     household = get_active_household(request)
-    goals = InvestmentGoal.objects.in_scope(request.user, household)
-    total_invested = sum((g.invested for g in goals), Decimal("0"))
+    goals = InvestmentGoal.objects.in_scope(request.user, household).with_invested()
+    total_invested = sum((g.invested_total for g in goals), Decimal("0"))
     return render(
         request,
         "finances/investment_list.html",
@@ -722,16 +733,15 @@ def investment_list(request):
 def investment_create(request):
     household = get_active_household(request)
     if request.method == "POST":
-        form = InvestmentGoalForm(request.POST)
+        form = InvestmentGoalForm(
+            request.POST, user=request.user, household=household
+        )
         if form.is_valid():
-            goal = form.save(commit=False)
-            goal.user = request.user
-            goal.household = household
-            goal.save()
+            goal = form.save()
             messages.success(request, "Objetivo criado.")
             return redirect("finances:investment_detail", pk=goal.pk)
     else:
-        form = InvestmentGoalForm()
+        form = InvestmentGoalForm(user=request.user, household=household)
     return render(
         request,
         "finances/investment_form.html",
@@ -746,13 +756,17 @@ def investment_update(request, pk):
         InvestmentGoal.objects.in_scope(request.user, household), pk=pk
     )
     if request.method == "POST":
-        form = InvestmentGoalForm(request.POST, instance=goal)
+        form = InvestmentGoalForm(
+            request.POST, instance=goal, user=request.user, household=household
+        )
         if form.is_valid():
             form.save()
             messages.success(request, "Objetivo atualizado.")
             return redirect("finances:investment_detail", pk=goal.pk)
     else:
-        form = InvestmentGoalForm(instance=goal)
+        form = InvestmentGoalForm(
+            instance=goal, user=request.user, household=household
+        )
     return render(
         request,
         "finances/investment_form.html",

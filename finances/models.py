@@ -4,13 +4,14 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models
+from django.db.models.functions import Coalesce
 
 
 class TransactionType(models.TextChoices):
     """Whether money comes in or goes out."""
 
-    INCOME = "income", "Income"
-    EXPENSE = "expense", "Expense"
+    INCOME = "income", "Receita"
+    EXPENSE = "expense", "Despesa"
 
 
 class PaymentMethod(models.TextChoices):
@@ -26,13 +27,69 @@ class PaymentMethod(models.TextChoices):
 
 hex_color_validator = RegexValidator(
     regex=r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$",
-    message="Color must be a hex value like #1abc9c.",
+    message="A cor deve ser um valor hexadecimal, ex.: #1abc9c.",
 )
 
 phone_validator = RegexValidator(
     regex=r"^\+?[0-9\s()\-]{8,20}$",
     message="Informe um telefone válido.",
 )
+
+
+class ScopedQuerySet(models.QuerySet):
+    """Shared scope filter: personal (household IS NULL) or a specific group."""
+
+    def in_scope(self, user, household):
+        if household is None:
+            return self.filter(user=user, household__isnull=True)
+        return self.filter(household=household)
+
+
+class NameTrimMixin:
+    """Trim the name and reject a blank one. Shared by named models."""
+
+    def clean(self):
+        super().clean()
+        if self.name:
+            self.name = self.name.strip()
+        if not self.name:
+            raise ValidationError({"name": "O nome não pode ficar em branco."})
+
+
+class ScopedEntryMixin:
+    """Shared clean() for entries that reference a scoped Category."""
+
+    def clean(self):
+        super().clean()
+        if self.description:
+            self.description = self.description.strip()
+
+        if self.category_id:
+            # The category must belong to the same scope as the entry.
+            if self.household_id:
+                if self.category.household_id != self.household_id:
+                    raise ValidationError(
+                        {"category": "A categoria deve ser do mesmo grupo."}
+                    )
+            elif self.user_id:
+                if (
+                    self.category.household_id is not None
+                    or self.category.user_id != self.user_id
+                ):
+                    raise ValidationError(
+                        {"category": "A categoria deve ser do mesmo usuário."}
+                    )
+
+            # The category type must match the entry type.
+            if self.type and self.category.type != self.type:
+                raise ValidationError(
+                    {
+                        "category": (
+                            "O tipo da categoria não corresponde ao tipo do "
+                            "lançamento."
+                        )
+                    }
+                )
 
 
 class Profile(models.Model):
@@ -58,7 +115,7 @@ class HouseholdManager(models.Manager):
         return self.filter(memberships__user=user)
 
 
-class Household(models.Model):
+class Household(NameTrimMixin, models.Model):
     """A shared space where several users track finances together."""
 
     name = models.CharField(max_length=80)
@@ -76,13 +133,6 @@ class Household(models.Model):
 
     def __str__(self):
         return self.name
-
-    def clean(self):
-        super().clean()
-        if self.name:
-            self.name = self.name.strip()
-        if not self.name:
-            raise ValidationError({"name": "Name cannot be blank."})
 
 
 class HouseholdMembership(models.Model):
@@ -112,15 +162,7 @@ class HouseholdMembership(models.Model):
         return f"{self.user.username} in {self.household.name}"
 
 
-class CategoryQuerySet(models.QuerySet):
-    def in_scope(self, user, household):
-        """Categories visible in the active scope (personal or a group)."""
-        if household is None:
-            return self.filter(user=user, household__isnull=True)
-        return self.filter(household=household)
-
-
-class Category(models.Model):
+class Category(NameTrimMixin, models.Model):
     """A user-defined bucket that classifies transactions."""
 
     user = models.ForeignKey(
@@ -146,7 +188,7 @@ class Category(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
-    objects = CategoryQuerySet.as_manager()
+    objects = ScopedQuerySet.as_manager()
 
     class Meta:
         verbose_name_plural = "categories"
@@ -169,23 +211,8 @@ class Category(models.Model):
     def __str__(self):
         return f"{self.name} ({self.get_type_display()})"
 
-    def clean(self):
-        super().clean()
-        if self.name:
-            self.name = self.name.strip()
-        if not self.name:
-            raise ValidationError({"name": "Name cannot be blank."})
 
-
-class TransactionQuerySet(models.QuerySet):
-    def in_scope(self, user, household):
-        """Transactions visible in the active scope (personal or a group)."""
-        if household is None:
-            return self.filter(user=user, household__isnull=True)
-        return self.filter(household=household)
-
-
-class Transaction(models.Model):
+class Transaction(ScopedEntryMixin, models.Model):
     """A single income or expense entry, personal or shared in a group."""
 
     user = models.ForeignKey(
@@ -236,7 +263,7 @@ class Transaction(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    objects = TransactionQuerySet.as_manager()
+    objects = ScopedQuerySet.as_manager()
 
     class Meta:
         ordering = ["-date", "-created_at"]
@@ -258,50 +285,8 @@ class Transaction(models.Model):
             return f"{self.installment_number}/{self.installment_total}"
         return ""
 
-    def clean(self):
-        super().clean()
-        if self.description:
-            self.description = self.description.strip()
 
-        # The category must belong to the same scope as the transaction.
-        if self.category_id:
-            if self.household_id:
-                if self.category.household_id != self.household_id:
-                    raise ValidationError(
-                        {"category": "Category must belong to the same group."}
-                    )
-            elif self.user_id:
-                if (
-                    self.category.household_id is not None
-                    or self.category.user_id != self.user_id
-                ):
-                    raise ValidationError(
-                        {"category": "Category must belong to the same user."}
-                    )
-
-        # The category type must match the transaction type.
-        if self.category_id and self.type:
-            if self.category.type != self.type:
-                raise ValidationError(
-                    {
-                        "category": (
-                            "Category type "
-                            f"'{self.category.get_type_display()}' does not "
-                            f"match transaction type '{self.get_type_display()}'."
-                        )
-                    }
-                )
-
-
-class RecurringTransactionQuerySet(models.QuerySet):
-    def in_scope(self, user, household):
-        """Fixed bills visible in the active scope (personal or a group)."""
-        if household is None:
-            return self.filter(user=user, household__isnull=True)
-        return self.filter(household=household)
-
-
-class RecurringTransaction(models.Model):
+class RecurringTransaction(ScopedEntryMixin, models.Model):
     """A fixed, open-ended bill (e.g. rent) that recurs every month."""
 
     user = models.ForeignKey(
@@ -337,7 +322,7 @@ class RecurringTransaction(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
-    objects = RecurringTransactionQuerySet.as_manager()
+    objects = ScopedQuerySet.as_manager()
 
     class Meta:
         ordering = ["description"]
@@ -350,44 +335,19 @@ class RecurringTransaction(models.Model):
         """Day of the month the bill falls on."""
         return self.start_date.day
 
-    def clean(self):
-        super().clean()
-        if self.description:
-            self.description = self.description.strip()
 
-        # The category must belong to the same scope as the bill.
-        if self.category_id:
-            if self.household_id:
-                if self.category.household_id != self.household_id:
-                    raise ValidationError(
-                        {"category": "Category must belong to the same group."}
-                    )
-            elif self.user_id:
-                if (
-                    self.category.household_id is not None
-                    or self.category.user_id != self.user_id
-                ):
-                    raise ValidationError(
-                        {"category": "Category must belong to the same user."}
-                    )
-
-        # The category type must match the bill type.
-        if self.category_id and self.type:
-            if self.category.type != self.type:
-                raise ValidationError(
-                    {"category": "Category type does not match the bill type."}
-                )
+class InvestmentGoalQuerySet(ScopedQuerySet):
+    def with_invested(self):
+        """Annotate each goal with the sum of its contributions (avoids N+1)."""
+        return self.annotate(
+            invested_total=Coalesce(
+                models.Sum("contributions__amount"),
+                models.Value(Decimal("0")),
+            )
+        )
 
 
-class InvestmentGoalQuerySet(models.QuerySet):
-    def in_scope(self, user, household):
-        """Goals visible in the active scope (personal or a group)."""
-        if household is None:
-            return self.filter(user=user, household__isnull=True)
-        return self.filter(household=household)
-
-
-class InvestmentGoal(models.Model):
+class InvestmentGoal(NameTrimMixin, models.Model):
     """A savings/investment target with a goal amount, personal or shared."""
 
     user = models.ForeignKey(
@@ -420,16 +380,11 @@ class InvestmentGoal(models.Model):
     def __str__(self):
         return self.name
 
-    def clean(self):
-        super().clean()
-        if self.name:
-            self.name = self.name.strip()
-        if not self.name:
-            raise ValidationError({"name": "Name cannot be blank."})
-
     @property
     def invested(self):
-        """Total contributed so far."""
+        """Total contributed so far. Uses the annotation from with_invested() if present."""
+        if hasattr(self, "invested_total"):
+            return self.invested_total
         total = self.contributions.aggregate(total=models.Sum("amount"))["total"]
         return total or Decimal("0")
 
@@ -471,7 +426,7 @@ class InvestmentContribution(models.Model):
         return f"{self.amount} → {self.goal.name}"
 
 
-class HouseholdList(models.Model):
+class HouseholdList(NameTrimMixin, models.Model):
     """A named checklist that belongs to a household (group only)."""
 
     household = models.ForeignKey(
@@ -487,13 +442,6 @@ class HouseholdList(models.Model):
 
     def __str__(self):
         return self.name
-
-    def clean(self):
-        super().clean()
-        if self.name:
-            self.name = self.name.strip()
-        if not self.name:
-            raise ValidationError({"name": "Name cannot be blank."})
 
 
 class HouseholdListItem(models.Model):

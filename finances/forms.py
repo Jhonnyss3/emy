@@ -82,7 +82,7 @@ class CategoryForm(forms.ModelForm):
         model = Category
         fields = ("name", "type", "color", "icon", "is_active")
         widgets = {
-            "name": forms.TextInput(attrs={"placeholder": "e.g. Groceries"}),
+            "name": forms.TextInput(attrs={"placeholder": "Ex.: Mercado"}),
             "type": forms.Select(),
             "color": forms.TextInput(attrs={"type": "color"}),
         }
@@ -239,6 +239,20 @@ class InvestmentGoalForm(forms.ModelForm):
             "target_amount": forms.NumberInput(attrs={"step": "0.01", "min": "0.01"}),
             "target_date": forms.DateInput(attrs={"type": "date"}),
         }
+
+    def __init__(self, *args, user=None, household=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+        self.household = household
+
+    def clean(self):
+        cleaned_data = super().clean()
+        # On create, attach owner and scope (same pattern as the other forms).
+        if self.instance.pk is None:
+            if self.user is not None:
+                self.instance.user = self.user
+            self.instance.household = self.household
+        return cleaned_data
 
 
 class ContributionForm(forms.ModelForm):

@@ -29,6 +29,7 @@
             <div>
                 <label for="id_target_amount_display" class="mb-1 block text-sm font-semibold text-emy-ink-soft">Meta (R$)</label>
                 <input type="text" id="id_target_amount_display" inputmode="numeric" placeholder="R$ 0,00"
+                       data-money-display data-money-target="id_target_amount"
                        class="w-full rounded-2xl bg-emy-bg px-4 py-3 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">
                 <input type="hidden" name="target_amount" id="id_target_amount" value="{{ form.target_amount.value|default:'' }}">
                 {% for error in form.target_amount.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
@@ -46,34 +47,4 @@
         </button>
     </div>
 </form>
-
-<script>
-(function () {
-    const display = document.getElementById("id_target_amount_display");
-    const hidden = document.getElementById("id_target_amount");
-    if (!display || !hidden) return;
-
-    function format(cents) {
-        return "R$ " + (cents / 100).toLocaleString("pt-BR", {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-        });
-    }
-
-    function sync() {
-        const digits = (display.value || "").replace(/\D/g, "");
-        const cents = digits ? parseInt(digits, 10) : 0;
-        display.value = cents ? format(cents) : "";
-        hidden.value = cents ? (cents / 100).toFixed(2) : "";
-    }
-
-    if (hidden.value) {
-        const cents = Math.round(parseFloat(hidden.value) * 100);
-        if (cents > 0) display.value = format(cents);
-    }
-
-    display.addEventListener("input", sync);
-    display.addEventListener("blur", sync);
-})();
-</script>
 {% endblock %}

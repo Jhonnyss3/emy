@@ -70,16 +70,4 @@
         </div>
     </div>
 </div>
-
-<script>
-    (function () {
-        var btn = document.getElementById('toggle-password');
-        var input = document.getElementById('id_password');
-        if (btn && input) {
-            btn.addEventListener('click', function () {
-                input.type = input.type === 'password' ? 'text' : 'password';
-            });
-        }
-    })();
-</script>
 {% endblock %}

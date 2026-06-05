@@ -62,6 +62,7 @@ INSTALLED_APPS = [
     'finances',
     'tailwind',
     'theme',
+    'django_vite',
     'axes',
 ]
 
@@ -161,6 +162,19 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Vite JS bundle output, served under /static/dist/ and collected by collectstatic.
+STATICFILES_DIRS = [('dist', BASE_DIR / 'frontend' / 'dist')]
+
+# django-vite: serve the built bundle (dev_mode off keeps parity with the
+# Tailwind build step — run `npm run build` after touching JS, no dev server).
+DJANGO_VITE = {
+    'default': {
+        'dev_mode': os.environ.get('DJANGO_VITE_DEV_MODE', 'False') == 'True',
+        'manifest_path': BASE_DIR / 'frontend' / 'dist' / 'manifest.json',
+        'static_url_prefix': 'dist',
+    }
+}
 
 # User-uploaded files. In production MEDIA_ROOT points to a Railway volume so
 # uploads survive deploys (the container filesystem is ephemeral).

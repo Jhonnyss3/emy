@@ -61,7 +61,7 @@ Ao adicionar ou editar funcionalidades em qualquer app, seguir sempre esta ordem
 - **Proteção contra brute force no login** via `django-axes`: bloqueio após `AXES_FAILURE_LIMIT` (5) tentativas falhas pela combinação IP + username, com cooloff de 1h e reset no sucesso. `AxesStandaloneBackend` é o primeiro em `AUTHENTICATION_BACKENDS` e `AxesMiddleware` é o último em `MIDDLEWARE`. Não remover nem reordenar sem entender o impacto.
 - **Nunca interpolar input do usuário em SQL/HTML cru.** Usar o ORM (que parametriza) e a auto-escape do template engine. Evitar `raw()`, `extra()`, `mark_safe`, `|safe` e `format_html` com dado não confiável.
 - **Validar e tipar todo input** via `Form`/`ModelForm` antes de tocar no banco. Não construir objetos direto de `request.POST`.
-- **Uploads** (quando houver): restringir extensão/tamanho, nunca servir arquivo de usuário como executável, e guardar fora do diretório de código.
+- **Uploads**: hoje há um upload de imagem (ícone de categoria, `ImageField` + Pillow). Restringir a imagens (o template usa `accept="image/*"`), nunca servir arquivo de usuário como executável, e guardar fora do diretório de código (em produção, no volume do Railway via `MEDIA_ROOT`). A mídia é servida por uma rota própria (`media/...` → `django.views.static.serve`) porque o WhiteNoise só serve estáticos, não mídia de usuário.
 - **Não logar dados sensíveis** (senhas, tokens, PII desnecessária).
 - Em produção: HTTPS obrigatório. O `settings.py` tem um bloco `if not DEBUG:` que ativa automaticamente `SECURE_SSL_REDIRECT` (configurável via env), `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, `SECURE_HSTS_SECONDS` (configurável via env, default 1 ano) + `INCLUDE_SUBDOMAINS`/`PRELOAD` e `SECURE_PROXY_SSL_HEADER` (confia no `X-Forwarded-Proto` do proxy que termina o TLS — o edge do Railway). Em desenvolvimento (`DEBUG=True`) o bloco fica inerte. No Railway o TLS é terminado no edge e o healthcheck bate por HTTP interno, então `SECURE_SSL_REDIRECT` é definido como `False` por env (senão o healthcheck toma 302). Ver seção **Deploy**.
 - Antes de cada release: rodar `python manage.py check --deploy` e resolver os apontamentos (hoje retorna 0 com `DEBUG=False` + `ALLOWED_HOSTS` preenchido).
@@ -111,10 +111,10 @@ Ao adicionar ou editar funcionalidades em qualquer app, seguir sempre esta ordem
 
 ## Deploy
 
-- **Produção no Railway**, a partir do `Dockerfile` (multi-stage: builder com venv + runtime mínimo rodando como usuário **não-root**). `railway.json` define o builder (`DOCKERFILE`) e o healthcheck (`/accounts/login/`). Push na branch `main` do GitHub dispara o rebuild.
-- O build da imagem roda `tailwind build` e depois `collectstatic` (com um `SECRET_KEY` descartável só para o settings importar durante o build). O `entrypoint.sh` roda `migrate --noinput` no start e então entrega ao `CMD` (gunicorn). Não rodar `migrate` manualmente no deploy.
-- Estáticos servidos por **WhiteNoise**; banco **PostgreSQL** via `DATABASE_URL`; servidor **Gunicorn** (porta de `${PORT}`).
-- **Variáveis no painel do Railway** (serviço web): `SECRET_KEY`, `DEBUG=False`, `DATABASE_URL`, `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`, `SECURE_SSL_REDIRECT=False`, `PORT`. O healthcheck do Railway usa `Host: healthcheck.railway.app` (já tratado no `settings.py`). Detalhes em `docs/security.md` e `docs/getting-started.md`.
+- **Produção no Railway**, a partir do `Dockerfile` (multi-stage: builder com venv + stage `assets` com Node para o build do JS + runtime mínimo rodando como usuário **não-root**). `railway.json` define o builder (`DOCKERFILE`) e o healthcheck (`/accounts/login/`). Push na branch `main` do GitHub dispara o rebuild.
+- O stage `assets` roda `npm ci && npm run build` (gera `frontend/dist`); o runtime copia esse `dist`, roda `tailwind build` e depois `collectstatic` (com um `SECRET_KEY` descartável só para o settings importar durante o build). O `entrypoint.sh` cria o `MEDIA_ROOT` (volume), roda `migrate --noinput` no start e então entrega ao `CMD` (gunicorn). Não rodar `migrate` manualmente no deploy.
+- Estáticos servidos por **WhiteNoise**; **mídia de usuário** (uploads) gravada num **volume do Railway** montado em `MEDIA_ROOT` (filesystem do container é efêmero — sem volume os uploads somem a cada deploy) e servida pela rota `media/...`; banco **PostgreSQL** via `DATABASE_URL`; servidor **Gunicorn** (porta de `${PORT}`).
+- **Variáveis no painel do Railway** (serviço web): `SECRET_KEY`, `DEBUG=False`, `DATABASE_URL`, `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`, `SECURE_SSL_REDIRECT=False`, `MEDIA_ROOT` (= mount path do volume, ex.: `/data`), `PORT`. Criar também o **Volume** apontando para esse mount path. O healthcheck do Railway usa `Host: healthcheck.railway.app` (já tratado no `settings.py`). Detalhes em `docs/security.md` e `docs/getting-started.md`.
 - **Stack local com Docker:** `docker-compose.yml` sobe `web` (gunicorn) + `db` (PostgreSQL); variáveis em `.env.docker` (modelo `.env.docker.example`). `docker compose up --build`.
 - O **login automático pós-cadastro** (`register`) precisa do backend explícito (`login(request, user, backend="django.contrib.auth.backends.ModelBackend")`) porque há múltiplos backends (`django-axes`) — sem ele, 500.
 
@@ -128,8 +128,10 @@ Ao adicionar ou editar funcionalidades em qualquer app, seguir sempre esta ordem
 - Python 3.14 / Django 6.0.5
 - SQLite (desenvolvimento) — `db.sqlite3`
 - PostgreSQL (produção — via `DATABASE_URL` + `dj-database-url`; mesmo ORM, sem mudança de modelo)
-- Frontend: Django Template Language (sem framework JS separado)
-- Estilização: TailwindCSS v4 via `django-tailwind` no **modo standalone** (sem Node.js — ver seção Frontend / TailwindCSS)
+- Frontend: Django Template Language (sem framework JS separado); o JavaScript é empacotado com **Vite** (ver seção Frontend)
+- Estilização: TailwindCSS v4 via `django-tailwind` no **modo standalone** (binário próprio, independente do Node — ver seção Frontend / TailwindCSS)
+- JavaScript: **Vite** + `django-vite` empacota os módulos de `frontend/src/` (Node usado só no build do JS; o Tailwind segue standalone)
+- Imagens enviadas pelo usuário (ícone de categoria): `ImageField` + **Pillow**, servidas via `MEDIA_URL`; em produção o `MEDIA_ROOT` aponta para um volume do Railway (ver seção Deploy)
 - Autenticação: `django.contrib.auth` com `User` nativo
 - Admin: `django.contrib.admin`
 - Produção: containerizada (`Dockerfile` multi-stage), servida por **Gunicorn** com **WhiteNoise** para os estáticos, deploy no **Railway** (ver seção Deploy)
@@ -137,15 +139,17 @@ Ao adicionar ou editar funcionalidades em qualquer app, seguir sempre esta ordem
 **Como rodar localmente:**
 ```bash
 source .venv/bin/activate         # ativa o virtualenv
+npm install                       # instala as deps do front (Vite) — uma vez
 python manage.py migrate          # aplica migrations
 python manage.py tailwind build   # compila o CSS (necessário ao menos uma vez)
+npm run build                     # compila o JS (bundle do Vite — necessário ao menos uma vez)
 python manage.py createsuperuser  # opcional, para acessar /admin/
 python manage.py runserver        # inicia o servidor em localhost:8000
 ```
 
-Durante o desenvolvimento de UI, manter `python manage.py tailwind start` rodando em outro terminal — recompila o CSS automaticamente a cada alteração de template.
+Durante o desenvolvimento de UI, manter `python manage.py tailwind start` (recompila o CSS) e `npm run watch` (recompila o JS) rodando em outros terminais.
 
-Dependências em `requirements.txt` (Django, asgiref, sqlparse, django-tailwind, pytailwindcss, python-dotenv, django-axes, pytest, pytest-django, e as de produção: gunicorn, whitenoise, psycopg[binary], dj-database-url).
+Dependências Python em `requirements.txt` (Django, asgiref, sqlparse, django-tailwind, pytailwindcss, python-dotenv, django-axes, Pillow, django-vite, pytest, pytest-django, e as de produção: gunicorn, whitenoise, psycopg[binary], dj-database-url). Dependências de front em `package.json` (Vite).
 
 As variáveis sensíveis (`SECRET_KEY`, `DEBUG`, `ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`, `DATABASE_URL`) ficam num `.env` na raiz (não versionado), carregado pelo `python-dotenv`. Copie o `.env.example` para `.env` e preencha o `SECRET_KEY` antes de rodar. Sem `DATABASE_URL`, usa o SQLite local.
 
@@ -168,11 +172,17 @@ emy/
 ├── theme/                # App do django-tailwind (gerado por `tailwind init`)
 │   ├── static_src/src/styles.css   # fonte do Tailwind (@import + @source)
 │   └── static/css/dist/styles.css  # CSS compilado (artefato de build)
+├── frontend/             # Fonte e build do JS (Vite)
+│   ├── src/main.js       # entry; importa os módulos de src/modules/
+│   ├── src/modules/      # pageLoader, scopeMenu, passwordToggle, colorSwatches, moneyMask
+│   └── dist/             # bundle compilado + manifest.json (artefato de build, no .gitignore)
 ├── docs/                 # Documentação de guidelines e padrões (índice em docs/README.md)
-├── Dockerfile            # Imagem multi-stage (builder + runtime non-root)
-├── entrypoint.sh         # Roda migrate no start e entrega para o gunicorn (CMD)
+├── Dockerfile            # Imagem multi-stage (builder + assets/Node + runtime non-root)
+├── entrypoint.sh         # Cria o MEDIA_ROOT, roda migrate no start e entrega para o gunicorn (CMD)
 ├── docker-compose.yml    # Stack local: web (gunicorn) + db (PostgreSQL)
 ├── railway.json          # Config de build/healthcheck do Railway
+├── package.json          # Deps e scripts do front (Vite)
+├── vite.config.js        # Config do Vite (build do JS para frontend/dist)
 ├── .dockerignore
 ├── .env.example          # Modelo do .env (desenvolvimento)
 ├── .env.docker.example   # Modelo do .env.docker (stack docker-compose)
@@ -199,13 +209,23 @@ Autenticação usa o `User` nativo de `django.contrib.auth` — não há app `ac
 
 ## Frontend / TailwindCSS
 
-- **TailwindCSS v4 via `django-tailwind` no modo standalone** — não há Node.js nem `npm` no projeto. O `pytailwindcss` baixa o binário standalone do Tailwind CLI; o `django-tailwind` o orquestra.
+- **TailwindCSS v4 via `django-tailwind` no modo standalone** — o `pytailwindcss` baixa o binário standalone do Tailwind CLI; o `django-tailwind` o orquestra. O CSS **não** depende de Node; só o JS (Vite) usa Node/npm.
 - O app `theme` foi criado por `python manage.py tailwind init` (template "Tailwind v4 Standalone").
 - Fonte do CSS: `theme/static_src/src/styles.css` — contém `@import "tailwindcss"`, a diretiva `@source` que faz o Tailwind escanear todos os `.html/.py/.js` do projeto, um bloco `@theme` com os **tokens de design Emy**: cores `emy-*` (`emy-bg`, `emy-ink`, `emy-pink-*`, `emy-purple-*`, `emy-good`, `emy-bad` etc.) e fontes `font-sans` (Plus Jakarta Sans), `font-serif` (Instrument Serif), `font-script` (Caveat), e um `@layer utilities` com `.no-scrollbar` (usada no app shell).
 - CSS compilado: `theme/static/css/dist/styles.css` — **artefato de build** (no `.gitignore`); o build precisa rodar no deploy. **Recompilar com `python manage.py tailwind build` sempre que mexer em template ou em `styles.css`.** Em produção os estáticos são servidos pelo **WhiteNoise** (`CompressedManifestStaticFilesStorage`); a imagem Docker roda `tailwind build` seguido de `collectstatic` no build, e os templates referenciam o CSS pelo manifest.
 - Settings: `INSTALLED_APPS` inclui `tailwind` e `theme`; `TAILWIND_APP_NAME = 'theme'`.
 - `finances/templates/base.html` carrega as fontes do Google (Plus Jakarta Sans, Instrument Serif, Caveat) e o CSS via `{% load tailwind_tags %}` + `{% tailwind_css %}` no `<head>`.
 - Comandos: `python manage.py tailwind build` (build único) e `python manage.py tailwind start` (modo watch no desenvolvimento).
+
+### JavaScript / Vite
+
+- O JS do projeto é empacotado com **Vite** e integrado ao Django via **`django-vite`**. Antes era `<script>` inline nos templates; agora vive em módulos sob `frontend/src/`.
+- Fonte: `frontend/src/main.js` (entry) importa os módulos de `frontend/src/modules/` — `pageLoader` (barra de loading), `scopeMenu` (fecha o dropdown de escopo), `passwordToggle` (login), `colorSwatches` (paleta no form de categoria) e `moneyMask` (máscara de moeda no campo Meta de investimento, via `data-money-display`/`data-money-target`). Cada módulo é guard-claused, então o bundle único roda em qualquer página.
+- Build: `npm run build` gera `frontend/dist/` (bundle + `manifest.json`) — **artefato de build, no `.gitignore`**. **Recompilar sempre que mexer em JS** (análogo ao `tailwind build`). `npm run watch` recompila no desenvolvimento.
+- `base.html` carrega o bundle com `{% load django_vite %}` + `{% vite_asset 'frontend/src/main.js' %}` no `<head>`.
+- Settings: `INSTALLED_APPS` inclui `django_vite`; `STATICFILES_DIRS = [('dist', BASE_DIR/'frontend'/'dist')]` mapeia o build para `/static/dist/`; `DJANGO_VITE` com `dev_mode` controlado por `DJANGO_VITE_DEV_MODE` (default `False` — usa o bundle buildado, sem dev server, igual ao fluxo do Tailwind), `manifest_path` em `frontend/dist/manifest.json` e `static_url_prefix='dist'`. O `collectstatic` coleta o `dist` e o WhiteNoise versiona/serve em produção.
+- **Tailwind segue standalone (sem Node); o Node/npm entrou só para o build do JS.** A imagem Docker tem um stage `assets` (Node) que roda `npm ci && npm run build` e copia o `dist` antes do `collectstatic`.
+
 - **Estado atual da UI:** identidade **Emy — variação "Petal"** (off-white rosado, soft com glow, cards arredondados, gradiente rosa→roxo), 100% Tailwind + tokens `emy-*` (sem `<style>` inline). O layout é um **app shell** sem scrollbar (página fixa em `100dvh`, só o `main` rola por dentro sem barra); a navegação tem dois menus (seletor de escopo em dropdown no topo + nav inferior de ícones); o **desktop usa 50/50** (`lg:grid-cols-2`) enquanto o mobile fica em coluna única. Ao criar/editar templates, usar classes Tailwind + tokens Emy e seguir esses padrões (ver `docs/frontend.md`, seção "Layout / app shell").
 
 ---
@@ -214,10 +234,17 @@ Autenticação usa o `User` nativo de `django.contrib.auth` — não há app `ac
 
 Diagramas completos (classes e ER) estão em `PRD.md`, seção 8.2.
 
+**Classes base compartilhadas** (em `models.py`, evitam duplicação):
+- `ScopedQuerySet` — QuerySet base com `in_scope(user, household)`; usado por `Category`, `Transaction`, `RecurringTransaction` e (estendido) `InvestmentGoal`.
+- `NameTrimMixin` — `clean()` que faz trim do `name` e rejeita vazio; usado por `Household`, `Category`, `InvestmentGoal`, `HouseholdList`.
+- `ScopedEntryMixin` — `clean()` que faz trim da descrição e valida categoria por escopo + `category.type == type`; usado por `Transaction` e `RecurringTransaction`.
+
 ### Enums (`models.TextChoices`)
 
-**TransactionType** — `income`, `expense`
-**PaymentMethod** — `cash`, `debit_card`, `credit_card`, `pix`, `bank_slip`, `bank_transfer`
+Os valores são em inglês (banco/código); os **labels são em pt-BR** (exibidos ao usuário via `get_*_display`).
+
+**TransactionType** — `income` (Receita), `expense` (Despesa)
+**PaymentMethod** — `cash` (Dinheiro), `debit_card` (Cartão de débito), `credit_card` (Cartão de crédito), `pix` (Pix), `bank_slip` (Boleto), `bank_transfer` (Transferência)
 
 ### Category
 
@@ -228,12 +255,12 @@ Bucket definido pelo usuário para classificar transações.
 - `name` CharField(80)
 - `type` CharField(10) — choices de `TransactionType`
 - `color` CharField(7) — hex, default `#3498db`, validado por `RegexValidator` (`#rgb` ou `#rrggbb`)
-- `icon` CharField(50) — opcional (`blank=True`)
+- `icon` ImageField (`upload_to="category_icons/"`, `blank=True, null=True`) — imagem enviada pelo usuário (exige Pillow), opcional
 - `is_active` Boolean — default `True`
 - `created_at` DateTimeField — `auto_now_add`
 - `Meta`: `ordering = ["name"]`, `verbose_name_plural = "categories"`, e duas `UniqueConstraint` condicionais: `unique_personal_category` `(user, name, type)` quando `household IS NULL` e `unique_household_category` `(household, name, type)` quando `household IS NOT NULL`
-- Manager `CategoryQuerySet.in_scope(user, household)`
-- `clean()` — faz trim do nome e rejeita nome vazio
+- Manager `ScopedQuerySet.in_scope(user, household)` (QuerySet base compartilhado por todos os models com escopo)
+- `clean()` — vem do `NameTrimMixin` (trim do nome e rejeita nome vazio)
 - `__str__` — `"{name} ({type})"`
 
 ### Transaction
@@ -255,10 +282,10 @@ Lançamento individual de receita ou despesa — pessoal ou compartilhado em gru
 - `created_at` DateTimeField — `auto_now_add`
 - `updated_at` DateTimeField — `auto_now`
 - `Meta`: `ordering = ["-date", "-created_at"]`
-- Manager `TransactionQuerySet.in_scope(user, household)`
+- Manager `ScopedQuerySet.in_scope(user, household)`
 - `signed_amount` @property — valor com sinal: negativo para despesa, positivo para receita
 - `installment_label` @property — `"2/12"` para parcelas, vazio caso contrário
-- `clean()`:
+- `clean()` — vem do `ScopedEntryMixin` (compartilhado com `RecurringTransaction`):
   - faz trim da descrição
   - valida a categoria por escopo: com `household`, a categoria deve ser do mesmo grupo; sem, deve ser pessoal e do mesmo `user`
   - valida que `category.type == transaction.type`
@@ -276,9 +303,9 @@ Conta fixa (UI: "conta fixa") — despesa/receita aberta que se repete todo mês
 - `start_date` DateField — a partir de quando recorre; o **dia** da cobrança vem dela
 - `is_active` Boolean — default `True`; pausar (`False`) interrompe a geração
 - `created_at` DateTimeField — `auto_now_add`
-- Manager `RecurringTransactionQuerySet.in_scope(user, household)`
+- Manager `ScopedQuerySet.in_scope(user, household)`
 - `day` @property — `start_date.day`
-- `clean()` — trim da descrição + valida categoria por escopo e `category.type == type` (mesmas regras de `Transaction`)
+- `clean()` — vem do `ScopedEntryMixin` (mesmas regras de `Transaction`: trim da descrição + categoria por escopo + `category.type == type`)
 - `__str__` — `"{description} (fixo)"`
 
 ### Profile
@@ -303,7 +330,7 @@ Espaço compartilhado (UI: "grupo") onde vários usuários acompanham finanças 
 - `created_at` DateTimeField — `auto_now_add`
 - `Meta`: `ordering = ["name"]`
 - Manager `HouseholdManager.for_user(user)` — grupos dos quais o usuário é membro
-- `clean()` — trim do nome; `__str__` — `name`
+- `clean()` — vem do `NameTrimMixin` (trim do nome); `__str__` — `name`
 
 ### HouseholdMembership
 
@@ -321,9 +348,9 @@ Objetivo de investimento com meta, pessoal ou de grupo. Fluxo separado das trans
 - `user` FK → `auth.User` (CASCADE, `related_name="investment_goals"`) — criador
 - `household` FK → `Household` (`null=True, blank=True`, CASCADE, `related_name="investment_goals"`) — nulo = pessoal; preenchido = grupo
 - `name` CharField(80); `target_amount` Decimal(12,2) `MinValueValidator(0.01)`; `target_date` DateField (opcional); `is_active` Bool (default True); `created_at`
-- Manager `InvestmentGoalQuerySet.in_scope(user, household)`
-- `@property invested` (soma dos aportes); `@property progress` (% da meta, limitado a 100)
-- `clean()` trim do nome; `__str__` = name
+- Manager `InvestmentGoalQuerySet` (estende `ScopedQuerySet`): `.in_scope(user, household)` + `.with_invested()` — anota cada objetivo com `invested_total` (`Coalesce(Sum(contributions__amount), 0)`) para evitar N+1 no `investment_list`
+- `@property invested` (usa a anotação `invested_total` quando presente; senão soma os aportes); `@property progress` (% da meta, limitado a 100)
+- `clean()` vem do `NameTrimMixin` (trim do nome); `__str__` = name
 
 ### InvestmentContribution
 
@@ -339,7 +366,7 @@ Aporte individual em um objetivo.
 Lista nomeada (checklist) de um grupo — só existe em grupo.
 
 - `household` FK → `Household` (CASCADE, `related_name="lists"`); `name` CharField(80); `created_at`
-- `clean()` trim; `__str__` = name
+- `clean()` vem do `NameTrimMixin` (trim do nome); `__str__` = name
 
 ### HouseholdListItem
 
@@ -363,7 +390,7 @@ Item de uma lista de casa.
 
 - **`RegistrationForm`** — herda de `UserCreationForm`; campo `email` (obrigatório, único — checado contra `email`/`username`). No `save()` grava o e-mail (em minúsculas) tanto em `user.email` quanto em `user.username`. É o cadastro por e-mail.
 - **`EmailAuthenticationForm`** — herda de `AuthenticationForm`; usado na rota de login (`core/urls.py` aponta a `LoginView` para ele). O `clean_username` normaliza o e-mail (trim + minúsculas) para casar com o `username` gravado em minúsculas no cadastro — login por e-mail **case-insensitive**.
-- **`CategoryForm`** — `ModelForm` de `Category`, campos `name`, `type`, `color`, `icon`, `is_active`. Widget `type=color` para `color`. Recebe `user=` e `household=` por kwarg no `__init__`; no `clean()` atribui `instance.user`/`instance.household` (apenas no create, para não trocar o criador num update de grupo) e sobrescreve `_get_validation_exclusions` para **não** excluir `user`/`household` — assim o `full_clean` roda as `UniqueConstraint` de escopo e a categoria duplicada vira erro de form (não `IntegrityError`/500).
+- **`CategoryForm`** — `ModelForm` de `Category`, campos `name`, `type`, `color`, `icon`, `is_active`. Widget `type=color` para `color`; `icon` é `ImageField` (upload de imagem — o template usa `<input type="file">` e o form/view recebem `request.FILES`). Recebe `user=` e `household=` por kwarg no `__init__`; no `clean()` atribui `instance.user`/`instance.household` (apenas no create, para não trocar o criador num update de grupo) e sobrescreve `_get_validation_exclusions` para **não** excluir `user`/`household` — assim o `full_clean` roda as `UniqueConstraint` de escopo e a categoria duplicada vira erro de form (não `IntegrityError`/500).
 - **`TransactionForm`** — `ModelForm` de `Transaction`, campos `description`, `amount`, `date`, `type`, `category`, `payment_method`, `notes`. O `__init__` recebe `user=` e `household=` por kwarg e:
   - filtra o queryset de `category` para mostrar apenas categorias **ativas do escopo ativo** (`Category.objects.in_scope(user, household)`);
   - em `clean()`, atribui `self.instance.user` e `self.instance.household` antes de o `Model.clean()` rodar as validações cruzadas.
@@ -373,7 +400,7 @@ Item de uma lista de casa.
 - **`ProfileForm`** — `ModelForm` de `Profile`, campos `birth_date` e `phone`, mais os campos declarados `first_name` e `last_name` (que gravam no `User` nativo, não no `Profile`). O `__init__` recebe `user=` por kwarg e pré-popula `first_name`/`last_name` com os valores atuais do `User`. O `save()` grava o `Profile` e o `User` na mesma chamada. Widgets: `birth_date` (`type=date`), `phone` (placeholder).
 - **`HouseholdForm`** — `ModelForm` de `Household`, campo `name`. O `created_by` é atribuído na view.
 - **`MemberAddForm`** — `Form` com campo `email`; valida que existe uma conta com aquele e-mail (busca por `email`/`username`) e expõe o usuário encontrado em `self.user`. Mensagem de falha neutra ("Não foi possível adicionar este e-mail ao grupo") para reduzir enumeração de contas.
-- **`InvestmentGoalForm`** — `ModelForm` de `InvestmentGoal`: `name`, `target_amount`, `target_date` (`type=date`). `user`/`household` atribuídos na view.
+- **`InvestmentGoalForm`** — `ModelForm` de `InvestmentGoal`: `name`, `target_amount`, `target_date` (`type=date`). Mesmo padrão dos demais forms com escopo: recebe `user=`/`household=` por kwarg e atribui no `clean()` (no create). O campo `target_amount` no template usa máscara de moeda (módulo `moneyMask`: campo visível formatado + hidden com o valor numérico).
 - **`ContributionForm`** — `ModelForm` de `InvestmentContribution`: `amount`, `date` (`type=date`), `notes`. `goal`/`user` atribuídos na view.
 - **`HouseholdListForm`** — `ModelForm` de `HouseholdList`, campo `name`.
 - **`HouseholdListItemForm`** — `ModelForm` de `HouseholdListItem`, campo `text`.
@@ -523,7 +550,7 @@ Todos os templates abaixo já estão na identidade visual Emy/Petal (ver seção
 
 ## Settings relevantes (`core/settings.py`)
 
-- `INSTALLED_APPS` inclui `finances`, `tailwind`, `theme` e `axes`.
+- `INSTALLED_APPS` inclui `finances`, `tailwind`, `theme`, `django_vite` e `axes`.
 - `MIDDLEWARE` inclui `whitenoise.middleware.WhiteNoiseMiddleware` (logo após o `SecurityMiddleware`, serve os estáticos em produção), `finances.middleware.ProfileCompletionMiddleware` (logo após o `AuthenticationMiddleware`) e `axes.middleware.AxesMiddleware` (por último).
 - `AUTHENTICATION_BACKENDS` = `axes.backends.AxesStandaloneBackend` (primeiro) + `django.contrib.auth.backends.ModelBackend`.
 - Config do `django-axes`: `AXES_FAILURE_LIMIT = 5`, `AXES_COOLOFF_TIME = 1` (h), `AXES_LOCKOUT_PARAMETERS = [["ip_address", "username"]]`, `AXES_RESET_ON_SUCCESS = True`.
@@ -534,7 +561,9 @@ Todos os templates abaixo já estão na identidade visual Emy/Petal (ver seção
 - No Railway, o `settings.py` lê `RAILWAY_PUBLIC_DOMAIN` e o anexa a `ALLOWED_HOSTS`/`CSRF_TRUSTED_ORIGINS`; quando há `RAILWAY_ENVIRONMENT`, adiciona `healthcheck.railway.app` ao `ALLOWED_HOSTS` (host do healthcheck — sem ele o deploy não fica saudável).
 - Bloco `if not DEBUG:` no fim do arquivo ativa o hardening de produção (SSL redirect configurável, cookies seguros, HSTS via `SECURE_HSTS_SECONDS`, `SECURE_PROXY_SSL_HEADER`).
 - Banco: `dj_database_url.config()` lê `DATABASE_URL` (PostgreSQL em Docker/Railway, `conn_max_age=600` + `conn_health_checks`) e cai no SQLite (`BASE_DIR / 'db.sqlite3'`) quando a variável não está definida.
-- Estáticos: `STORAGES['staticfiles']` usa `whitenoise.storage.CompressedManifestStaticFilesStorage`; `STATIC_ROOT = BASE_DIR / 'staticfiles'`.
+- Estáticos: `STORAGES['staticfiles']` usa `whitenoise.storage.CompressedManifestStaticFilesStorage`; `STATIC_ROOT = BASE_DIR / 'staticfiles'`. `STATICFILES_DIRS = [('dist', BASE_DIR/'frontend'/'dist')]` inclui o build do Vite (servido em `/static/dist/`).
+- Vite: `DJANGO_VITE` (`dev_mode` via `DJANGO_VITE_DEV_MODE`, default `False`; `manifest_path` em `frontend/dist/manifest.json`; `static_url_prefix='dist'`). Ver seção **Frontend / Vite**.
+- Mídia: `MEDIA_URL = 'media/'`; `MEDIA_ROOT = os.environ.get('MEDIA_ROOT', BASE_DIR/'media')` (em produção aponta para o volume do Railway). A mídia é servida por uma rota em `core/urls.py` (`media/...` → `serve`), pois o WhiteNoise não serve mídia de usuário.
 
 ---
 
@@ -555,7 +584,7 @@ Todos os templates abaixo já estão na identidade visual Emy/Petal (ver seção
 - **Gestão do grupo restrita ao dono**: só `Household.created_by` edita o nome (`household_update`), exclui o grupo (`household_delete`) e adiciona/remove membros; o dono não pode ser removido. A exclusão é via POST com tela de confirmação reforçada e, sendo `CASCADE`, apaga todos os dados do grupo (categorias, lançamentos, contas fixas, investimentos, listas) para todos os membros; se o grupo excluído for o escopo ativo, a sessão volta para Pessoal. `created_by` em `CASCADE` (apagar a conta do dono apaga o grupo) é escolha de MVP — ainda não há tela de exclusão de conta.
 - **Investimentos como fluxo separado (aporte não vira `Transaction`)**: `InvestmentGoal`/`InvestmentContribution` são models próprios e reusam o escopo (`household` anulável + `in_scope`). O aporte não duplica em `Transaction`; o dashboard soma os aportes do mês no escopo e os subtrai do saldo. Assim a seção de investimentos fica separada (telas/lista próprias) e o aporte ainda reflete como saída de caixa, sem mexer na obrigatoriedade de `category`.
 - **Listas de casa só em grupo**: `HouseholdList` tem `household` obrigatório (não há lista pessoal). As views exigem escopo de grupo ativo e restringem o acesso às listas dos grupos do usuário; o acesso é via atalho no dashboard quando o escopo é um grupo.
-- **TailwindCSS no modo standalone (sem Node.js)**: optou-se por `django-tailwind` 4.x + `pytailwindcss` em vez do modo "full" que exige Node/npm. Mantém o ambiente de desenvolvimento 100% Python — só `pip install` e os comandos `manage.py tailwind`. O binário do Tailwind CLI é baixado pelo `pytailwindcss`.
+- **TailwindCSS no modo standalone (sem Node)**: optou-se por `django-tailwind` 4.x + `pytailwindcss` em vez do modo "full" que exige Node/npm — o **CSS** não depende de Node (binário do Tailwind CLI baixado pelo `pytailwindcss`). O Node entrou depois **só para o build do JS** (Vite, ver decisão abaixo); o Tailwind seguiu standalone para não reescrever o pipeline de CSS.
 - **Identidade visual "Petal" (TailwindCSS)**: a UI foi migrada da v1 (CSS inline) para a identidade Emy, variação **"Petal"** — off-white rosado, soft/feminino com glow, cards bem arredondados, gradiente rosa→roxo, nav inferior flutuante. Escolhida entre três explorações de design (Soft Bloom / Petal / Aurora). Os tokens (cores `emy-*`, fontes) vivem no bloco `@theme` de `theme/static_src/src/styles.css`; o `<style>` inline do `base.html` foi removido. A migração cobriu só as telas com model atual (`Category`/`Transaction`) — Cartões, Metas, Insights, Transferência e Recorrência aparecem no mock mas não têm model e ficaram fora.
 - **App shell sem scrollbar**: o `base.html` usa `h-[100dvh] overflow-hidden` no `<body>` e torna o `<main>` a única área rolável (`overflow-y-auto` + utility `.no-scrollbar` em `styles.css`), com o conteúdo centralizado por `my-auto`. A página nunca rola e não há barra visível; conteúdo maior que a tela rola por dentro. Foco mobile-first com `dvh`.
 - **Dois menus (escopo no topo, seções embaixo)**: o topo tem o **seletor de escopo** (dropdown `<details>`: Pessoal/grupos/criar grupo) e a **nav inferior** flutuante de ícones cuida da navegação entre seções (mobile e desktop). Decisão do usuário de manter os dois separados.
@@ -570,3 +599,7 @@ Todos os templates abaixo já estão na identidade visual Emy/Petal (ver seção
 - **Conta fixa materializada sob demanda**: `RecurringTransaction` é um template aberto (sem fim). Como não dá para materializar infinitas transações, `_materialize_recurring(user, household, year, month)` cria a ocorrência do mês **quando o mês é aberto** (dashboard/lista), de forma idempotente (checa por `recurring_source` + ano/mês). Não gera antes do `start_date` nem quando `is_active=False`. As ocorrências são `Transaction` reais (editáveis, entram no saldo) com `recurring_source` setado; ao excluir a conta fixa, `SET_NULL` preserva o histórico.
 - **Previsão calculada, não materializada**: a tela `forecast` projeta os próximos 6 meses somando transações reais + contas fixas ativas que **ainda não** foram materializadas naquele mês (filtra pelo conjunto de `recurring_source` já presentes), evitando dupla contagem. Não cria nada — o mês só "se concretiza" (materializa) quando aberto na navegação.
 - **Navegação por mês**: dashboard e lista passaram de "mês corrente fixo" para `?month=AAAA-MM` (helper `_resolve_month`), com setas e rótulo pt-BR (`MONTHS_PT`, pois `LANGUAGE_CODE` é en-us). É o que permite enxergar parcelas e contas fixas dos meses futuros.
+- **Classes base no `models.py` (DRY)**: o filtro de escopo virou um `ScopedQuerySet.in_scope` único (era copiado em 4 QuerySets); o trim/validação de nome virou `NameTrimMixin` e a validação de escopo+tipo da categoria virou `ScopedEntryMixin` (eram `clean()` duplicados). Menos repetição, mesma regra numa fonte só.
+- **Ícone da categoria como `ImageField` (upload de imagem)**: era `CharField` de texto livre (confuso). Virou upload de imagem com Pillow; em produção a mídia vive num **volume do Railway** (`MEDIA_ROOT`), pois o filesystem do container é efêmero. A mídia é servida por rota própria (`media/...` → `serve`) já que o WhiteNoise só serve estáticos. Escolheu-se o volume por ser o caminho mais simples e persistente, sem conta/SDK externos (S3/R2 ficam para quando houver escala/CDN).
+- **JS com Vite (mantendo o Tailwind standalone)**: o JS inline dos templates foi extraído para módulos em `frontend/src/` e empacotado com **Vite** + `django-vite`. Optou-se por usar o Node **só para o JS** — o Tailwind continua no modo standalone (binário próprio, sem Node) para não reescrever todo o pipeline de CSS. `dev_mode` fica off por padrão (usa o bundle buildado), então o fluxo é `npm run build` (análogo ao `tailwind build`), sem exigir dev server.
+- **Interface 100% em pt-BR**: removida a mistura inglês/português que sobrava — `messages`, `title`, mensagens de `ValidationError` dos models e os labels de `TransactionType`/`PaymentMethod` agora são pt-BR (os valores no banco seguem em inglês). `get_*_display` passa a devolver rótulos em português direto, sem contorno manual no template.

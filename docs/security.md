@@ -63,6 +63,18 @@ não só por `request.user` — e continua sendo a barreira central e
   parametriza) e a auto-escape do template engine. Evitar `raw()`, `extra()`,
   `mark_safe`, `|safe` e `format_html` com dado não confiável.
 
+## Uploads (mídia de usuário)
+
+- Hoje há um upload: o **ícone de categoria** (`ImageField` + Pillow). O template
+  restringe a imagens (`accept="image/*"`); o `Category.icon` valida que é uma
+  imagem (Pillow). Nunca servir o arquivo como executável.
+- A mídia fica **fora do diretório de código**: em produção, no `MEDIA_ROOT`
+  apontando para um **volume do Railway** (filesystem do container é efêmero) e,
+  no dev, em `BASE_DIR/media` (no `.gitignore`).
+- A mídia é servida por uma rota dedicada em `core/urls.py`
+  (`media/...` → `django.views.static.serve`), pois o WhiteNoise só serve
+  estáticos. O `serve` do Django normaliza o path (sem traversal).
+
 ## Segredos e configuração
 
 - Segredos nunca no código nem no versionamento. `SECRET_KEY`, credenciais de

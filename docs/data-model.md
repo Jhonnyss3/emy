@@ -3,12 +3,28 @@
 Definido em [finances/models.py](../finances/models.py). Diagramas de classe
 e ER completos estão no [PRD.md](../PRD.md), seção 8.2.
 
+## Classes base compartilhadas
+
+Para evitar duplicação, `models.py` define três bases reusadas pelos models:
+
+- **`ScopedQuerySet`** — QuerySet base com `in_scope(user, household)` (pessoal
+  ou grupo). Usado por `Category`, `Transaction`, `RecurringTransaction` e,
+  estendido, por `InvestmentGoal`.
+- **`NameTrimMixin`** — `clean()` que faz trim do `name` e rejeita vazio. Usado
+  por `Household`, `Category`, `InvestmentGoal`, `HouseholdList`.
+- **`ScopedEntryMixin`** — `clean()` que faz trim da descrição e valida a
+  categoria por escopo + `category.type == type`. Usado por `Transaction` e
+  `RecurringTransaction`.
+
 ## Enums (`models.TextChoices`)
 
-**TransactionType** — `income`, `expense`
+Valores em inglês (banco/código), **labels em pt-BR** (exibidos via `get_*_display`).
 
-**PaymentMethod** — `cash`, `debit_card`, `credit_card`, `pix`, `bank_slip`,
-`bank_transfer`
+**TransactionType** — `income` (Receita), `expense` (Despesa)
+
+**PaymentMethod** — `cash` (Dinheiro), `debit_card` (Cartão de débito),
+`credit_card` (Cartão de crédito), `pix` (Pix), `bank_slip` (Boleto),
+`bank_transfer` (Transferência)
 
 ## Category
 
@@ -21,7 +37,7 @@ Bucket definido pelo usuário para classificar transações.
 | `name` | CharField(80) | |
 | `type` | CharField(10) | choices de `TransactionType` |
 | `color` | CharField(7) | hex, default `#3498db`, validado por `RegexValidator` (`#rgb` ou `#rrggbb`) |
-| `icon` | CharField(50) | opcional (`blank=True`) |
+| `icon` | ImageField | `upload_to="category_icons/"`, `blank=True, null=True` — imagem enviada pelo usuário (exige Pillow), opcional |
 | `is_active` | Boolean | default `True` |
 | `created_at` | DateTimeField | `auto_now_add` |
 
@@ -29,9 +45,9 @@ Bucket definido pelo usuário para classificar transações.
   `UniqueConstraint` condicionais: `unique_personal_category` em
   `(user, name, type)` quando `household IS NULL`, e `unique_household_category`
   em `(household, name, type)` quando `household IS NOT NULL`.
-- Manager `CategoryQuerySet.in_scope(user, household)` — categorias do escopo
+- Manager `ScopedQuerySet.in_scope(user, household)` — categorias do escopo
   ativo (pessoal ou grupo).
-- `clean()` — faz trim do nome e rejeita nome vazio.
+- `clean()` — vem do `NameTrimMixin` (trim do nome, rejeita vazio).
 - `__str__` — `"{name} ({type})"`.
 
 ## Transaction
@@ -56,12 +72,12 @@ Lançamento individual de receita ou despesa, pertencente a um usuário.
 | `updated_at` | DateTimeField | `auto_now` |
 
 - `Meta`: `ordering = ["-date", "-created_at"]`.
-- Manager `TransactionQuerySet.in_scope(user, household)` — lançamentos do
+- Manager `ScopedQuerySet.in_scope(user, household)` — lançamentos do
   escopo ativo (pessoal ou grupo).
 - `signed_amount` @property — valor com sinal: negativo para despesa,
   positivo para receita. Calculado na leitura, não persistido.
 - `installment_label` @property — `"2/12"` para parcelas, vazio caso contrário.
-- `clean()`:
+- `clean()` — vem do `ScopedEntryMixin` (compartilhado com `RecurringTransaction`):
   - faz trim da descrição;
   - valida a categoria por escopo: se há `household`, a categoria deve ser do
     mesmo grupo; se é pessoal, a categoria deve ser pessoal e do mesmo `user`;
@@ -87,10 +103,10 @@ parcelas), é materializada **sob demanda**.
 | `is_active` | Boolean | default `True`; pausar interrompe a geração |
 | `created_at` | DateTimeField | `auto_now_add` |
 
-- Manager `RecurringTransactionQuerySet.in_scope(user, household)`.
+- Manager `ScopedQuerySet.in_scope(user, household)`.
 - `day` @property — `start_date.day`.
-- `clean()` — trim da descrição + valida categoria por escopo e
-  `category.type == type` (mesmas regras de `Transaction`).
+- `clean()` — vem do `ScopedEntryMixin` (mesmas regras de `Transaction`: trim da
+  descrição + categoria por escopo + `category.type == type`).
 - A materialização (`_materialize_recurring` na view) cria a `Transaction` do
   mês ao abrir o dashboard/lista, de forma idempotente; ao excluir a conta fixa,
   `Transaction.recurring_source` vira `NULL` (preserva o histórico).
@@ -128,7 +144,7 @@ conjunto. Ex.: a conta da casa de um casal.
 - `Meta`: `ordering = ["name"]`.
 - Manager `HouseholdManager.for_user(user)` — grupos dos quais o usuário é
   membro (`memberships__user=user`).
-- `clean()` — faz trim do nome e rejeita nome vazio.
+- `clean()` — vem do `NameTrimMixin` (trim do nome, rejeita vazio).
 - `__str__` — `name`.
 
 ## HouseholdMembership
@@ -159,10 +175,14 @@ Vive num fluxo separado das transações.
 | `is_active` | Boolean | default `True` |
 | `created_at` | DateTimeField | `auto_now_add` |
 
-- Manager `InvestmentGoalQuerySet.in_scope(user, household)` (mesma lógica de Category/Transaction).
-- `@property invested` — soma dos `amount` dos aportes; `@property progress` —
-  `invested / target_amount * 100`, limitado a 100.
-- `clean()` trim do nome; `Meta.ordering = ["name"]`; `__str__` = name.
+- Manager `InvestmentGoalQuerySet` (estende `ScopedQuerySet`): `.in_scope(user,
+  household)` + `.with_invested()`, que anota cada objetivo com `invested_total`
+  (`Coalesce(Sum(contributions__amount), 0)`) para evitar N+1 no `investment_list`.
+- `@property invested` — usa a anotação `invested_total` quando presente; senão
+  soma os `amount` dos aportes. `@property progress` — `invested / target_amount
+  * 100`, limitado a 100.
+- `clean()` vem do `NameTrimMixin` (trim do nome); `Meta.ordering = ["name"]`;
+  `__str__` = name.
 
 ## InvestmentContribution
 
@@ -191,7 +211,7 @@ Lista nomeada (checklist) que pertence a um grupo — existe só em grupo.
 | `name` | CharField(80) | |
 | `created_at` | DateTimeField | `auto_now_add` |
 
-- `clean()` trim do nome; `Meta.ordering = ["name"]`; `__str__` = name.
+- `clean()` vem do `NameTrimMixin` (trim do nome); `Meta.ordering = ["name"]`; `__str__` = name.
 
 ## HouseholdListItem
 

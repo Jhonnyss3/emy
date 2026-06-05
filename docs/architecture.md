@@ -7,7 +7,9 @@
 | Linguagem | Python 3.14 |
 | Framework web | Django 6.0.5 (MVT, server-rendered) |
 | Templates | Django Template Language (sem framework JS) |
-| Estilização | TailwindCSS v4 via `django-tailwind` em modo standalone |
+| Estilização | TailwindCSS v4 via `django-tailwind` em modo standalone (sem Node) |
+| JavaScript | Vite + `django-vite` (bundle de `frontend/src/`); Node usado só no build do JS |
+| Uploads | `ImageField` + Pillow; `MEDIA_ROOT` em volume do Railway na produção |
 | Autenticação | `django.contrib.auth` com `User` nativo |
 | Banco (dev) | SQLite 3 |
 | Banco (produção) | PostgreSQL (via `DATABASE_URL` + `dj-database-url`) |
@@ -20,7 +22,7 @@
 emy/
 ├── core/                 # Projeto Django (settings, urls, wsgi/asgi)
 ├── finances/             # App de domínio
-│   ├── models.py         # Category, Transaction, Profile, Household(+Membership), InvestmentGoal(+Contribution), HouseholdList(+Item), enums
+│   ├── models.py         # Category, Transaction, Profile, Household(+Membership), InvestmentGoal(+Contribution), HouseholdList(+Item), enums, ScopedQuerySet + mixins
 │   ├── forms.py          # Registration, Category, Transaction, Profile, Household(+Member), InvestmentGoal, Contribution, HouseholdList(+Item)
 │   ├── views.py          # register, profile_edit, dashboard, CRUD, grupos e escopo
 │   ├── middleware.py     # ProfileCompletionMiddleware
@@ -31,14 +33,17 @@ emy/
 │   ├── migrations/
 │   └── templates/        # base.html, finances/, registration/
 ├── theme/                # App do django-tailwind (fonte + build do CSS)
+├── frontend/             # Fonte (src/) e build (dist/) do JS — Vite
 ├── docs/                 # Esta documentação
-├── Dockerfile            # Imagem multi-stage (builder + runtime non-root)
-├── entrypoint.sh         # Roda migrate no start e entrega para o gunicorn (CMD)
+├── Dockerfile            # Imagem multi-stage (builder + assets/Node + runtime non-root)
+├── entrypoint.sh         # Cria o MEDIA_ROOT, roda migrate no start e entrega para o gunicorn (CMD)
 ├── docker-compose.yml    # Stack local: web (gunicorn) + db (PostgreSQL)
 ├── railway.json          # Config de build/healthcheck do Railway
 ├── .dockerignore
 ├── .env.example          # Modelo do .env (desenvolvimento)
 ├── .env.docker.example   # Modelo do .env.docker (stack docker-compose)
+├── package.json          # Deps e scripts do front (Vite)
+├── vite.config.js        # Config do Vite (build do JS para frontend/dist)
 ├── manage.py
 ├── requirements.txt
 ├── db.sqlite3
@@ -67,8 +72,9 @@ sessão (`request.session["active_household_id"]`).
 - `get_active_household(request)` (em `views.py`) resolve o escopo, validando a
   membership; cai em pessoal se o id for inválido.
 - Os managers `Transaction/Category/InvestmentGoal.objects.in_scope(user, household)`
-  e `Household.objects.for_user(user)` centralizam o filtro. Investimentos
-  reusam o mesmo escopo (objetivos pessoais ou de grupo).
+  e `Household.objects.for_user(user)` centralizam o filtro. O `in_scope` vem de
+  um `ScopedQuerySet` base compartilhado (uma fonte só). Investimentos reusam o
+  mesmo escopo (objetivos pessoais ou de grupo).
 - O context processor `finances.context_processors.scope` expõe
   `active_household` e `user_households` a todos os templates (pílula de escopo
   no `base.html`).
@@ -167,7 +173,7 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a
 
 ## Settings relevantes (`core/settings.py`)
 
-- `INSTALLED_APPS` inclui `finances`, `tailwind`, `theme` e `axes`.
+- `INSTALLED_APPS` inclui `finances`, `tailwind`, `theme`, `django_vite` e `axes`.
 - `MIDDLEWARE` inclui `whitenoise.middleware.WhiteNoiseMiddleware` logo após o
   `SecurityMiddleware` (serve os estáticos em produção),
   `finances.middleware.ProfileCompletionMiddleware`, logo após o
@@ -176,6 +182,9 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a
 - `AUTHENTICATION_BACKENDS`: `axes.backends.AxesStandaloneBackend` (primeiro) + `django.contrib.auth.backends.ModelBackend`.
 - `django-axes`: `AXES_FAILURE_LIMIT = 5`, `AXES_COOLOFF_TIME = 1` (h), `AXES_LOCKOUT_PARAMETERS = [["ip_address", "username"]]`, `AXES_RESET_ON_SUCCESS = True` — ver [security.md](security.md).
 - `TAILWIND_APP_NAME = 'theme'`.
+- `DJANGO_VITE` (`dev_mode` via `DJANGO_VITE_DEV_MODE`, default `False`;
+  `manifest_path` em `frontend/dist/manifest.json`; `static_url_prefix='dist'`) —
+  ver [frontend.md](frontend.md).
 - `DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'`.
 - `AUTH_PASSWORD_VALIDATORS` com a configuração padrão do Django.
 - Redirecionamentos de autenticação: `LOGIN_URL = 'login'`,
@@ -185,8 +194,14 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a
   variável não está definida. Usa `conn_max_age=600` e `conn_health_checks`.
 - Estáticos: `STORAGES['staticfiles']` usa
   `whitenoise.storage.CompressedManifestStaticFilesStorage` (comprime e versiona
-  com hash para cache longo). `STATIC_ROOT = BASE_DIR / 'staticfiles'`. O
-  `collectstatic` roda no build da imagem Docker.
+  com hash para cache longo). `STATIC_ROOT = BASE_DIR / 'staticfiles'`.
+  `STATICFILES_DIRS = [('dist', BASE_DIR/'frontend'/'dist')]` inclui o bundle do
+  Vite (servido em `/static/dist/`). O `collectstatic` roda no build da imagem
+  Docker.
+- Mídia: `MEDIA_URL = 'media/'`; `MEDIA_ROOT = os.environ.get('MEDIA_ROOT',
+  BASE_DIR/'media')` (em produção, o mount path de um volume do Railway). A
+  mídia é servida por uma rota em `core/urls.py` (`media/...` → `serve`), pois o
+  WhiteNoise não serve mídia de usuário.
 - `SECRET_KEY`, `DEBUG` e `ALLOWED_HOSTS` vêm de variáveis de ambiente,
   carregadas de um `.env` na raiz pelo `python-dotenv`. `CSRF_TRUSTED_ORIGINS`
   também vem do ambiente. No Railway, o `settings.py` lê `RAILWAY_PUBLIC_DOMAIN`

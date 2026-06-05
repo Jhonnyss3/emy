@@ -3,8 +3,9 @@
 ## Pré-requisitos
 
 - Python 3.14
-- O projeto não usa Node.js. O TailwindCSS roda em modo standalone via
-  `pytailwindcss`, que baixa o binário do Tailwind CLI automaticamente.
+- Node.js (LTS) — usado **só para o build do JS** (Vite). O TailwindCSS roda em
+  modo standalone via `pytailwindcss` (binário do Tailwind CLI baixado
+  automaticamente, sem Node).
 
 ## Dependências
 
@@ -16,7 +17,9 @@ dj-database-url==3.0.1
 Django==6.0.5
 django-axes==8.3.1
 django-tailwind==4.4.2
+django-vite==3.1.0
 gunicorn==23.0.0
+Pillow==12.2.0
 psycopg[binary]==3.2.10
 pytailwindcss==0.3.0
 pytest==9.0.3
@@ -25,6 +28,10 @@ python-dotenv==1.2.2
 sqlparse==0.5.5
 whitenoise==6.11.0
 ```
+
+`Pillow` é exigido pelo `ImageField` (ícone de categoria); `django-vite` integra
+o bundle do Vite. As dependências de **front** (Vite) ficam em
+[package.json](../package.json) e são instaladas com `npm install`.
 
 O `django-axes` exige aplicar suas migrations (`python manage.py migrate`) —
 o passo a passo abaixo já cobre isso. As dependências de produção
@@ -59,19 +66,21 @@ um valor pequeno ao habilitar e aumente depois.
 
 ```bash
 source .venv/bin/activate         # ativa o virtualenv
-pip install -r requirements.txt   # instala as dependências
+pip install -r requirements.txt   # instala as dependências Python
+npm install                       # instala as dependências do front (Vite)
 cp .env.example .env              # cria o .env e preencha o SECRET_KEY
 python manage.py migrate          # aplica as migrations
 python manage.py tailwind build   # compila o CSS (ao menos uma vez)
+npm run build                     # compila o JS (bundle do Vite — ao menos uma vez)
 python manage.py createsuperuser  # opcional, para acessar /admin/
 python manage.py runserver        # inicia o servidor em localhost:8000
 ```
 
 ## Desenvolvimento de interface
 
-Durante o trabalho de UI, manter `python manage.py tailwind start` rodando
-em outro terminal — ele recompila o CSS automaticamente a cada alteração de
-template.
+Durante o trabalho de UI, manter rodando em outros terminais:
+- `python manage.py tailwind start` — recompila o CSS a cada alteração de template;
+- `npm run watch` — recompila o JS a cada alteração em `frontend/src/`.
 
 ## Banco de dados
 
@@ -98,11 +107,14 @@ cp .env.docker.example .env.docker   # preencha SECRET_KEY, POSTGRES_PASSWORD, D
 docker compose up --build            # sobe web + db; app em http://localhost:8000
 ```
 
-O `Dockerfile` é multi-stage (builder com venv + runtime mínimo rodando como
-usuário não-root). No build da imagem ele roda `tailwind build` e
-`collectstatic` (um `SECRET_KEY` descartável só permite o settings importar
-durante o build). O `entrypoint.sh` roda `migrate` no start e então sobe o
-gunicorn. Os estáticos são servidos pelo **WhiteNoise** (sem Nginx).
+O `Dockerfile` é multi-stage (builder com venv + stage `assets` com Node para o
+build do JS + runtime mínimo rodando como usuário não-root). O stage `assets`
+roda `npm ci && npm run build`; o runtime copia o `frontend/dist`, roda
+`tailwind build` e `collectstatic` (um `SECRET_KEY` descartável só permite o
+settings importar durante o build). O `entrypoint.sh` cria o `MEDIA_ROOT`, roda
+`migrate` no start e então sobe o gunicorn. Os estáticos são servidos pelo
+**WhiteNoise**; a **mídia de usuário** (uploads) é servida por uma rota própria
+(`media/...`) e gravada no `MEDIA_ROOT`.
 
 ### Deploy no Railway
 
@@ -111,7 +123,10 @@ gunicorn. Os estáticos são servidos pelo **WhiteNoise** (sem Nginx).
 - Push na branch `main` do GitHub dispara o rebuild.
 - O serviço precisa de um PostgreSQL provisionado e das variáveis de ambiente
   no painel (`SECRET_KEY`, `DEBUG=False`, `DATABASE_URL`, `ALLOWED_HOSTS`,
-  `CSRF_TRUSTED_ORIGINS`, `SECURE_SSL_REDIRECT=False`, `PORT`). O healthcheck do
-  Railway bate com `Host: healthcheck.railway.app` — o `settings.py` adiciona
-  esse host ao `ALLOWED_HOSTS` quando detecta o ambiente Railway. Detalhes de
-  segurança em [security.md](security.md).
+  `CSRF_TRUSTED_ORIGINS`, `SECURE_SSL_REDIRECT=False`, `MEDIA_ROOT`, `PORT`). O
+  healthcheck do Railway bate com `Host: healthcheck.railway.app` — o
+  `settings.py` adiciona esse host ao `ALLOWED_HOSTS` quando detecta o ambiente
+  Railway. Detalhes de segurança em [security.md](security.md).
+- **Uploads persistentes:** crie um **Volume** no serviço web e aponte
+  `MEDIA_ROOT` para o mount path dele (ex.: `/data`). O filesystem do container é
+  efêmero — sem volume, as imagens enviadas somem a cada deploy.

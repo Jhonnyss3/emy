@@ -221,7 +221,9 @@ flowchart TD
 | Linguagem | Python 3.14 | |
 | Framework web | Django 6.0.5 | MVT, server-rendered |
 | Templates | Django Template Language | Sem SPA |
-| Estilização | TailwindCSS v4 | `django-tailwind` 4.x no modo standalone (`pytailwindcss`) — sem Node.js. Instalado e configurado. |
+| Estilização | TailwindCSS v4 | `django-tailwind` 4.x no modo standalone (`pytailwindcss`) — sem Node. Instalado e configurado. |
+| JavaScript | Vite + `django-vite` | Empacota os módulos de `frontend/src/`; Node usado só no build do JS |
+| Uploads | `ImageField` + Pillow | Ícone de categoria; `MEDIA_ROOT` em volume do Railway na produção |
 | Autenticação | `django.contrib.auth` | `User` nativo |
 | Banco (dev) | SQLite 3 | `db.sqlite3` |
 | Banco (produção) | PostgreSQL | Via `DATABASE_URL` + `dj-database-url`; mesmo ORM, sem mudança de modelo |
@@ -280,7 +282,7 @@ classDiagram
         +String name
         +String type
         +String color
-        +String icon
+        +ImageField icon
         +Boolean is_active
         +DateTime created_at
         +clean()
@@ -461,7 +463,7 @@ erDiagram
         string name
         string type "income | expense"
         string color "hex, default #3498db"
-        string icon "opcional"
+        image icon "opcional, upload (ImageField)"
         bool is_active "default true"
         datetime created_at
     }

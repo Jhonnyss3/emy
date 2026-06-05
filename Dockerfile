@@ -15,6 +15,16 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 
+# ---- Assets: build the JS bundle with Vite ----
+FROM node:22-slim AS assets
+
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY vite.config.js ./
+COPY frontend ./frontend
+RUN npm run build
+
 # ---- Runtime: minimal image running as an unprivileged user ----
 FROM python:3.14-slim AS runtime
 
@@ -30,6 +40,8 @@ WORKDIR /app
 
 COPY --from=builder /opt/venv /opt/venv
 COPY . .
+# Vite-built JS bundle (.dockerignore excludes the local copy, so bring it in).
+COPY --from=assets /app/frontend/dist ./frontend/dist
 
 # Build the Tailwind CSS bundle and collect static files at image build time.
 # The throwaway SECRET_KEY only lets Django settings import during the build;

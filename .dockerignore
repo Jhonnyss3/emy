@@ -20,6 +20,8 @@ db.sqlite3-journal
 # Build artifacts (regenerated inside the image)
 staticfiles/
 theme/static/css/dist/
+node_modules/
+frontend/dist/
 
 # Tooling / docs / IDE
 .pytest_cache/

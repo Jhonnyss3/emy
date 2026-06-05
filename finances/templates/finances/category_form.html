@@ -101,16 +101,4 @@
         </div>
     </div>
 </form>
-
-<script>
-(function () {
-    const picker = document.getElementById("id_color");
-    if (!picker) return;
-    document.querySelectorAll(".color-swatch").forEach(function (btn) {
-        btn.addEventListener("click", function () {
-            picker.value = btn.dataset.color;
-        });
-    });
-})();
-</script>
 {% endblock %}

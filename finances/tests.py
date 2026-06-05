@@ -315,6 +315,20 @@ def test_goal_progress(user):
     assert goal.progress == 40
 
 
+def test_goal_with_invested_annotation_avoids_extra_query(user, django_assert_num_queries):
+    goal = InvestmentGoal.objects.create(
+        user=user, name="Viagem", target_amount=Decimal("1000")
+    )
+    InvestmentContribution.objects.create(
+        goal=goal, user=user, amount=Decimal("250"), date=date.today()
+    )
+    goals = list(InvestmentGoal.objects.in_scope(user, None).with_invested())
+    # invested/progress read the annotation, so no per-goal aggregate query.
+    with django_assert_num_queries(0):
+        assert goals[0].invested == Decimal("250")
+        assert goals[0].progress == 25
+
+
 def test_goal_progress_capped_at_100(user):
     goal = InvestmentGoal.objects.create(
         user=user, name="Meta baixa", target_amount=Decimal("100")
@@ -449,6 +463,14 @@ def test_category_create_view_handles_duplicate(client, user):
     # second submit is re-rendered with an error, not a 500
     assert resp.status_code == 200
     assert Category.objects.filter(user=user, name="Mercado").count() == 1
+
+
+def test_delete_confirm_pages_render(client, user, household):
+    # The confirm_delete template must render on GET for every model that reuses it.
+    cat = Category.objects.create(user=user, name="Mercado", type="expense")
+    client.force_login(user)
+    assert client.get(reverse("finances:category_delete", args=[cat.pk])).status_code == 200
+    assert client.get(reverse("finances:household_delete", args=[household.pk])).status_code == 200
 
 
 def test_category_create_accepts_image_icon(client, user, settings, tmp_path):

@@ -2,9 +2,10 @@
 
 ## TailwindCSS
 
-- **TailwindCSS v4 via `django-tailwind` no modo standalone** — não há Node.js
-  nem `npm` no projeto. O `pytailwindcss` baixa o binário standalone do
-  Tailwind CLI; o `django-tailwind` o orquestra.
+- **TailwindCSS v4 via `django-tailwind` no modo standalone** — o `pytailwindcss`
+  baixa o binário standalone do Tailwind CLI; o `django-tailwind` o orquestra. O
+  CSS **não** depende de Node; só o JS (Vite, ver seção **JavaScript / Vite**)
+  usa Node/npm.
 - O app `theme` foi criado por `python manage.py tailwind init` (template
   "Tailwind v4 Standalone").
 - Fonte do CSS: `theme/static_src/src/styles.css` — contém
@@ -29,6 +30,37 @@
 - `python manage.py tailwind build` — build único. **Rodar sempre que mexer
   em template ou em `styles.css`**, senão as classes novas não entram no CSS.
 - `python manage.py tailwind start` — modo watch para desenvolvimento.
+
+## JavaScript / Vite
+
+- O JS do projeto é empacotado com **Vite** e integrado ao Django via
+  **`django-vite`**. Antes era `<script>` inline nos templates; agora vive em
+  módulos sob `frontend/src/`.
+- Fonte: `frontend/src/main.js` (entry) importa os módulos de
+  `frontend/src/modules/`:
+  - `pageLoader` — barra de loading no topo (navegação/submits);
+  - `scopeMenu` — fecha o dropdown de escopo ao clicar fora;
+  - `passwordToggle` — mostra/oculta a senha no login;
+  - `colorSwatches` — paleta de cores no form de categoria (botões
+    `.color-swatch[data-color]` setam o `<input type="color">`);
+  - `moneyMask` — máscara de moeda (campo visível formatado + `<input hidden>`
+    com o valor numérico), via `data-money-display`/`data-money-target` (usado no
+    campo Meta de investimento).
+  Cada módulo é guard-claused, então o bundle único roda em qualquer página.
+- Build: `npm run build` gera `frontend/dist/` (bundle + `manifest.json`) —
+  **artefato de build, no `.gitignore`**. **Recompilar sempre que mexer em JS**
+  (análogo ao `tailwind build`). `npm run watch` recompila no desenvolvimento;
+  `npm install` instala as deps na primeira vez.
+- `base.html` carrega o bundle com `{% load django_vite %}` +
+  `{% vite_asset 'frontend/src/main.js' %}` no `<head>`.
+- Settings: `INSTALLED_APPS` inclui `django_vite`; `STATICFILES_DIRS = [('dist',
+  BASE_DIR/'frontend'/'dist')]` mapeia o build para `/static/dist/`;
+  `DJANGO_VITE` com `dev_mode` via `DJANGO_VITE_DEV_MODE` (default `False` — usa o
+  bundle buildado, sem dev server), `manifest_path` em
+  `frontend/dist/manifest.json` e `static_url_prefix='dist'`. O `collectstatic`
+  coleta o `dist` e o WhiteNoise versiona/serve em produção.
+- Na imagem Docker, um stage `assets` (Node) roda `npm ci && npm run build` e
+  copia o `dist` antes do `collectstatic`.
 
 ## Design tokens — Emy / Petal
 
@@ -70,7 +102,8 @@ maior que a tela, volta ao topo e rola por dentro, sem barra visível).
   o rótulo do mês (pt-BR) e atalho "Hoje"; trocam o mês via `?month=AAAA-MM`.
   As contas fixas se materializam ao abrir o mês.
 - **Barra de loading:** `#page-loader` no topo (gradiente) disparada por
-  cliques em links internos e submits; finaliza no `pageshow`.
+  cliques em links internos e submits; finaliza no `pageshow`. A lógica vive no
+  módulo `pageLoader` (bundle do Vite), não mais inline.
 
 ### Responsividade — desktop 50/50
 
@@ -159,16 +192,20 @@ a página virou app shell sem scrollbar; a nav inferior passou a ser de ícones
 o padrão **50/50** (`lg:grid-cols-2`), com o dashboard redesenhado em cards de
 stat. O mobile permanece em coluna única.
 
+Depois vieram ajustes de UI: ícone da categoria virou **upload de imagem**
+(`ImageField`), o form de categoria ganhou uma **paleta de cores** prontas, o
+campo Meta de investimento ganhou **máscara de moeda**, os cards "Entrou/Saiu"
+do dashboard viraram atalhos para a lista filtrada por tipo, e o JS inline foi
+migrado para o **Vite** (ver seção **JavaScript / Vite**).
+
 Pendências de UI conhecidas:
 
 - O dashboard não tem o bloco "gastos por categoria" (donut + lista) do mock:
   cabe nos models atuais, mas exige um agregado por categoria na `dashboard`
   view.
-- `get_type_display` / `get_payment_method_display` retornam rótulos em
-  inglês (labels dos `choices` do model); nos templates isso é contornado
-  com pt-BR manual. Correção real seria nos `choices` do model.
 - Valores monetários usam `floatformat:2` (ex.: `4832.17`); o formato pt-BR
-  (`4.832,17`) depende de configuração de locale.
+  (`4.832,17`) depende de configuração de locale. (Os labels de `choices` já
+  estão em pt-BR — `get_*_display` devolve português direto.)
 
 Ao criar template novo, usar classes Tailwind e os tokens Emy. Ao editar um
 existente, manter coerência com o padrão Petal já aplicado.
