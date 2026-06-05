@@ -44,6 +44,11 @@ if RAILWAY_PUBLIC_DOMAIN:
     ALLOWED_HOSTS.append(RAILWAY_PUBLIC_DOMAIN)
     CSRF_TRUSTED_ORIGINS.append(f'https://{RAILWAY_PUBLIC_DOMAIN}')
 
+# Railway's deploy healthcheck reaches the service with this fixed Host header;
+# allow it so the healthcheck doesn't get a 400 (DisallowedHost).
+if os.environ.get('RAILWAY_ENVIRONMENT'):
+    ALLOWED_HOSTS.append('healthcheck.railway.app')
+
 
 # Application definition
 
