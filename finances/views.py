@@ -217,7 +217,12 @@ def household_delete(request, pk):
         # Deleting the active scope leaves a stale id in the session; reset it.
         if request.session.get("active_household_id") == household.pk:
             request.session.pop("active_household_id", None)
-        household.delete()
+        with transaction.atomic():
+            # Transactions/recurring bills reference categories via PROTECT, so
+            # drop them before the household cascade removes the categories.
+            Transaction.objects.filter(household=household).delete()
+            RecurringTransaction.objects.filter(household=household).delete()
+            household.delete()
         messages.success(request, "Grupo excluído.")
         return redirect("finances:household_list")
     return render(request, "finances/confirm_delete.html", {"object": household})

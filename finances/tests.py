@@ -190,6 +190,19 @@ def test_non_owner_cannot_delete_household(client, other, household):
     assert Household.objects.filter(pk=household.pk).exists()
 
 
+def test_owner_can_delete_household_with_data(client, user, household):
+    category = Category.objects.create(
+        user=user, household=household, name="Mercado", type="expense"
+    )
+    make_transaction(user, category, household=household).save()
+    client.force_login(user)
+    resp = client.post(reverse("finances:household_delete", args=[household.pk]))
+    assert resp.status_code == 302
+    assert not Household.objects.filter(pk=household.pk).exists()
+    assert not Category.objects.filter(pk=category.pk).exists()
+    assert not Transaction.objects.filter(household=household).exists()
+
+
 def test_household_delete_clears_active_scope(client, user, household):
     client.force_login(user)
     session = client.session
