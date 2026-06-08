@@ -1,0 +1,27 @@
+{# Styled date widget. Params: name, value (date or ISO string), input_id (optional). #}
+<div class="relative mt-1" data-date-widget>
+    <input type="hidden" name="{{ name }}"{% if input_id %} id="{{ input_id }}"{% endif %} data-date-input
+           value="{% if value %}{{ value|date:'Y-m-d'|default:value }}{% endif %}">
+    <button type="button" data-date-toggle aria-haspopup="dialog" aria-expanded="false"
+            class="flex w-full items-center justify-between gap-2 rounded-2xl bg-emy-bg px-4 py-3 text-sm text-emy-ink ring-1 ring-emy-line transition focus:bg-emy-surface focus:outline-none focus:ring-2 focus:ring-emy-pink-400">
+        <span data-date-label class="font-semibold text-emy-ink-mute">dd/mm/aaaa</span>
+        <svg class="h-4 w-4 shrink-0 text-emy-ink-mute" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M6 2a.75.75 0 0 1 .75.75V4h6.5V2.75a.75.75 0 0 1 1.5 0V4A2.75 2.75 0 0 1 17.5 6.75v8A2.75 2.75 0 0 1 14.75 17.5H5.25A2.75 2.75 0 0 1 2.5 14.75v-8A2.75 2.75 0 0 1 5.25 4V2.75A.75.75 0 0 1 6 2ZM4 8.75v6c0 .69.56 1.25 1.25 1.25h9.5c.69 0 1.25-.56 1.25-1.25v-6H4Z" clip-rule="evenodd"/>
+        </svg>
+    </button>
+    <div class="absolute left-0 z-30 mt-2 hidden w-[19rem] max-w-[calc(100vw-3rem)] rounded-2xl bg-emy-surface p-3 shadow-card ring-1 ring-emy-line" data-date-panel role="dialog">
+        <div class="flex items-center justify-between">
+            <button type="button" data-date-prev aria-label="Mês anterior"
+                    class="grid h-8 w-8 place-items-center rounded-full text-lg text-emy-ink-soft transition hover:bg-emy-bg hover:text-emy-pink-600">‹</button>
+            <span data-date-title class="text-sm font-bold text-emy-ink"></span>
+            <button type="button" data-date-next aria-label="Próximo mês"
+                    class="grid h-8 w-8 place-items-center rounded-full text-lg text-emy-ink-soft transition hover:bg-emy-bg hover:text-emy-pink-600">›</button>
+        </div>
+        <div data-date-weekdays class="mt-2 grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase tracking-wider text-emy-ink-mute"></div>
+        <div data-date-grid class="mt-1 grid grid-cols-7 gap-1"></div>
+        <div class="mt-2 flex items-center justify-between border-t border-emy-line pt-2">
+            <button type="button" data-date-today class="rounded-full px-2 py-1 text-xs font-bold text-emy-pink-600 transition hover:underline">Hoje</button>
+            <button type="button" data-date-clear class="rounded-full px-2 py-1 text-xs font-bold text-emy-ink-mute transition hover:underline">Limpar</button>
+        </div>
+    </div>
+</div>

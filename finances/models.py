@@ -25,6 +25,13 @@ class PaymentMethod(models.TextChoices):
     BANK_TRANSFER = "bank_transfer", "Transferência"
 
 
+class CategoryNature(models.TextChoices):
+    """Whether a category repeats every month (fixed) or changes (variable)."""
+
+    FIXED = "fixed", "Fixa"
+    VARIABLE = "variable", "Variável"
+
+
 hex_color_validator = RegexValidator(
     regex=r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$",
     message="A cor deve ser um valor hexadecimal, ex.: #1abc9c.",
@@ -179,6 +186,11 @@ class Category(NameTrimMixin, models.Model):
     )
     name = models.CharField(max_length=80)
     type = models.CharField(max_length=10, choices=TransactionType.choices)
+    nature = models.CharField(
+        max_length=10,
+        choices=CategoryNature.choices,
+        default=CategoryNature.VARIABLE,
+    )
     color = models.CharField(
         max_length=7,
         default="#3498db",

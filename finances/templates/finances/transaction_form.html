@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load l10n %}
 {% block title %}{% if form.instance.pk %}Editar lançamento{% else %}Novo lançamento{% endif %} - Emy{% endblock %}
 
 {% block content %}
@@ -42,12 +43,12 @@
         {% for error in form.type.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
 
         <div class="mt-6">
-            <p class="text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Quanto foi?</p>
-            <div class="mt-2 flex items-baseline gap-2">
-                <span class="text-2xl font-bold text-emy-ink-mute">R$</span>
-                <input type="number" name="amount" step="0.01" min="0.01" required
-                       value="{{ form.amount.value|default:'' }}" placeholder="0,00"
+            <label for="id_amount_display" class="text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Quanto foi?</label>
+            <div class="mt-2">
+                <input type="text" id="id_amount_display" inputmode="numeric" placeholder="R$ 0,00"
+                       data-money-display data-money-target="id_amount" autocomplete="off"
                        class="w-full bg-transparent text-5xl font-extrabold text-emy-ink outline-none placeholder:text-emy-ink-mute/40">
+                <input type="hidden" name="amount" id="id_amount" value="{{ form.amount.value|default:''|unlocalize }}">
             </div>
             {% for error in form.amount.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
         </div>
@@ -68,9 +69,8 @@
 
         <div class="mt-6 grid grid-cols-2 gap-4">
             <div>
-                <label for="id_date" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Data</label>
-                <input type="date" name="date" id="id_date" required value="{{ form.date.value|default:'' }}"
-                       class="w-full rounded-2xl bg-emy-bg px-4 py-3 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">
+                <span class="mb-1 block text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Data</span>
+                {% include "finances/_date_field.html" with name="date" value=form.date.value input_id="id_date" %}
                 {% for error in form.date.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
             </div>
             <div>
@@ -88,9 +88,12 @@
         {% if not form.instance.pk %}
         <div class="mt-6">
             <label for="id_installments" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Parcelas</label>
-            <input type="number" name="installments" id="id_installments" min="1" max="60"
-                   value="{{ form.installments.value|default:'1' }}"
-                   class="w-full rounded-2xl bg-emy-bg px-4 py-3 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">
+            <select name="installments" id="id_installments"
+                    class="w-full rounded-2xl bg-emy-bg px-4 py-3 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">
+                {% for value, label in form.installments.field.choices %}
+                    <option value="{{ value }}" {% if form.installments.value|stringformat:'s' == value|stringformat:'s' %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
             <p class="mt-1 text-xs text-emy-ink-mute">Acima de 1, o valor é dividido e lançado nos próximos meses.</p>
             {% for error in form.installments.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
         </div>

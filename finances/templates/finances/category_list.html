@@ -13,38 +13,44 @@
     </a>
 </div>
 
-<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-    {% for c in categories %}
-        <div class="rounded-[1.5rem] bg-emy-surface p-5 shadow-card {% if not c.is_active %}opacity-60{% endif %}">
-            <div class="flex items-start justify-between">
-                {% if c.icon %}
-                    <img src="{{ c.icon.url }}" alt="{{ c.name }}"
-                         class="h-11 w-11 rounded-2xl object-cover ring-1 ring-emy-line">
-                {% else %}
-                    <span class="h-11 w-11 rounded-2xl" style="background:{{ c.color }}"></span>
-                {% endif %}
-                <span class="rounded-full bg-emy-bg px-2.5 py-1 text-xs font-bold text-emy-ink-soft">
-                    {% if c.type == 'income' %}Receita{% else %}Despesa{% endif %}
-                </span>
-            </div>
-            <p class="mt-3 text-base font-extrabold">{{ c.name }}</p>
-            <p class="text-xs text-emy-ink-mute">
-                {% if c.is_active %}Ativa{% else %}Inativa{% endif %}
-            </p>
-            <div class="mt-4 flex gap-2">
-                <a href="{% url 'finances:category_update' c.pk %}"
-                   class="rounded-full bg-emy-bg px-3 py-1.5 text-xs font-bold text-emy-ink-soft transition hover:text-emy-pink-600">
-                    Editar
-                </a>
-                <a href="{% url 'finances:category_delete' c.pk %}"
-                   class="rounded-full bg-emy-bg px-3 py-1.5 text-xs font-bold text-emy-ink-soft transition hover:bg-emy-bad/10 hover:text-emy-bad">
-                    Excluir
-                </a>
-            </div>
+{% regroup categories by get_nature_display as nature_groups %}
+{% for group in nature_groups %}
+    <section class="mb-7">
+        <h2 class="mb-3 text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">{{ group.grouper }}</h2>
+        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {% for c in group.list %}
+                <div class="rounded-[1.5rem] bg-emy-surface p-5 shadow-card {% if not c.is_active %}opacity-60{% endif %}">
+                    <div class="flex items-start justify-between">
+                        {% if c.icon %}
+                            <img src="{{ c.icon.url }}" alt="{{ c.name }}"
+                                 class="h-11 w-11 rounded-2xl object-cover ring-1 ring-emy-line">
+                        {% else %}
+                            <span class="h-11 w-11 rounded-2xl" style="background:{{ c.color }}"></span>
+                        {% endif %}
+                        <span class="rounded-full bg-emy-bg px-2.5 py-1 text-xs font-bold text-emy-ink-soft">
+                            {% if c.type == 'income' %}Receita{% else %}Despesa{% endif %}
+                        </span>
+                    </div>
+                    <p class="mt-3 text-base font-extrabold">{{ c.name }}</p>
+                    <p class="text-xs text-emy-ink-mute">
+                        {% if c.is_active %}Ativa{% else %}Inativa{% endif %}
+                    </p>
+                    <div class="mt-4 flex gap-2">
+                        <a href="{% url 'finances:category_update' c.pk %}"
+                           class="rounded-full bg-emy-bg px-3 py-1.5 text-xs font-bold text-emy-ink-soft transition hover:text-emy-pink-600">
+                            Editar
+                        </a>
+                        <a href="{% url 'finances:category_delete' c.pk %}"
+                           class="rounded-full bg-emy-bg px-3 py-1.5 text-xs font-bold text-emy-ink-soft transition hover:bg-emy-bad/10 hover:text-emy-bad">
+                            Excluir
+                        </a>
+                    </div>
+                </div>
+            {% endfor %}
         </div>
-    {% empty %}
-        {% url 'finances:category_create' as create_url %}
-        {% include "finances/_empty_state.html" with message="Nenhuma categoria ainda." action_url=create_url action_label="Criar a primeira" extra_classes="sm:col-span-2 lg:col-span-3" %}
-    {% endfor %}
-</div>
+    </section>
+{% empty %}
+    {% url 'finances:category_create' as create_url %}
+    {% include "finances/_empty_state.html" with message="Nenhuma categoria ainda." action_url=create_url action_label="Criar a primeira" %}
+{% endfor %}
 {% endblock %}

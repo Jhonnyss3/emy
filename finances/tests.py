@@ -432,7 +432,7 @@ def test_non_member_cannot_open_list(client, other, household):
 
 # --- Category duplicate handling via form/view (RF06) -----------------------
 
-CAT_DATA = {"name": "Mercado", "type": "expense", "color": "#3498db", "is_active": "on"}
+CAT_DATA = {"name": "Mercado", "type": "expense", "nature": "variable", "color": "#3498db", "is_active": "on"}
 
 
 def test_category_form_rejects_duplicate_personal(user):
@@ -463,6 +463,16 @@ def test_category_create_view_handles_duplicate(client, user):
     # second submit is re-rendered with an error, not a 500
     assert resp.status_code == 200
     assert Category.objects.filter(user=user, name="Mercado").count() == 1
+
+
+def test_category_create_saves_nature(client, user):
+    client.force_login(user)
+    client.post(
+        reverse("finances:category_create"),
+        {**CAT_DATA, "name": "Aluguel", "nature": "fixed"},
+    )
+    cat = Category.objects.get(user=user, name="Aluguel")
+    assert cat.nature == "fixed"
 
 
 def test_delete_confirm_pages_render(client, user, household):
@@ -625,6 +635,69 @@ def test_transaction_list_combines_filters_and_summarizes(client, user):
     found = {t.description for t in resp2.context["transactions"]}
     assert found == {"Compra grande", "Compra pequena"}
     assert resp2.context["summary_expense"] == Decimal("350")
+
+
+def test_transaction_list_sort_by_amount_groups_income_and_expense(client, user):
+    inc = Category.objects.create(user=user, name="Salário", type="income")
+    exp = Category.objects.create(user=user, name="Mercado", type="expense")
+    day = timezone.localdate().replace(day=12)
+    Transaction.objects.create(
+        user=user, category=exp, description="Grande",
+        amount=Decimal("300"), date=day, type="expense",
+    )
+    Transaction.objects.create(
+        user=user, category=exp, description="Pequena",
+        amount=Decimal("50"), date=day, type="expense",
+    )
+    Transaction.objects.create(
+        user=user, category=inc, description="Bônus",
+        amount=Decimal("200"), date=day, type="income",
+    )
+    Transaction.objects.create(
+        user=user, category=inc, description="Mesada",
+        amount=Decimal("500"), date=day, type="income",
+    )
+    client.force_login(user)
+    resp = client.get(reverse("finances:transaction_list"), {
+        "month": day.strftime("%Y-%m"), "sort": "amount",
+    })
+    rows = [(t.type, t.description) for t in resp.context["transactions"]]
+    assert rows == [
+        ("income", "Mesada"), ("income", "Bônus"),
+        ("expense", "Grande"), ("expense", "Pequena"),
+    ]
+    assert resp.context["sort"] == "amount"
+
+
+def test_transaction_create_ajax_returns_ok_and_creates(client, user):
+    cat = Category.objects.create(user=user, name="Mercado", type="expense")
+    client.force_login(user)
+    resp = client.post(
+        reverse("finances:transaction_create"),
+        {
+            "description": "Pão", "amount": "12.50", "date": "2026-06-10",
+            "type": "expense", "category": str(cat.pk),
+            "payment_method": "cash", "installments": "1",
+        },
+        headers={"x-requested-with": "XMLHttpRequest"},
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": True}
+    assert Transaction.objects.filter(user=user, description="Pão").count() == 1
+
+
+def test_transaction_create_ajax_invalid_returns_errors(client, user):
+    client.force_login(user)
+    resp = client.post(
+        reverse("finances:transaction_create"),
+        {"description": "", "amount": "", "type": "expense", "installments": "1"},
+        headers={"x-requested-with": "XMLHttpRequest"},
+    )
+    assert resp.status_code == 400
+    body = resp.json()
+    assert body["ok"] is False
+    assert "amount" in body["errors"]
+    assert Transaction.objects.filter(user=user).count() == 0
 
 
 def test_installments_split_across_months(client, user):

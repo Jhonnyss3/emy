@@ -80,7 +80,7 @@ class RegistrationForm(UserCreationForm):
 class CategoryForm(forms.ModelForm):
     class Meta:
         model = Category
-        fields = ("name", "type", "color", "icon", "is_active")
+        fields = ("name", "type", "nature", "color", "icon", "is_active")
         widgets = {
             "name": forms.TextInput(attrs={"placeholder": "Ex.: Mercado"}),
             "type": forms.Select(),
@@ -112,8 +112,12 @@ class CategoryForm(forms.ModelForm):
 
 class TransactionForm(forms.ModelForm):
     # Non-model field: how many monthly installments to split this entry into.
-    installments = forms.IntegerField(
-        required=False, min_value=1, max_value=60, initial=1
+    installments = forms.TypedChoiceField(
+        coerce=int,
+        choices=[(1, "À vista (1x)")] + [(n, f"{n}x") for n in range(2, 25)],
+        required=False,
+        initial=1,
+        empty_value=1,
     )
 
     class Meta:
@@ -137,11 +141,12 @@ class TransactionForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.user = user
         self.household = household
-        # Only show active categories from the active scope (personal or group).
+        # Only show active categories from the active scope (personal or group),
+        # ordered by nature so the select can group them under Fixa/Variável.
         if user is not None:
             self.fields["category"].queryset = Category.objects.in_scope(
                 user, household
-            ).filter(is_active=True)
+            ).filter(is_active=True).order_by("nature", "name")
 
     def clean_installments(self):
         return self.cleaned_data.get("installments") or 1
@@ -188,7 +193,7 @@ class RecurringTransactionForm(forms.ModelForm):
         if user is not None:
             self.fields["category"].queryset = Category.objects.in_scope(
                 user, household
-            ).filter(is_active=True)
+            ).filter(is_active=True).order_by("nature", "name")
 
     def clean(self):
         cleaned_data = super().clean()

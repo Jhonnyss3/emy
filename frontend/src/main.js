@@ -8,6 +8,8 @@ import { initCategorySelect } from "./modules/categorySelect.js";
 import { initFilterForm } from "./modules/filterForm.js";
 import { initSelectWidget } from "./modules/selectWidget.js";
 import { initForecastChart } from "./modules/forecastChart.js";
+import { initDateWidget } from "./modules/dateWidget.js";
+import { initLaunchModal } from "./modules/launchModal.js";
 
 function init() {
     initPageLoader();
@@ -20,6 +22,8 @@ function init() {
     initFilterForm();
     initSelectWidget();
     initForecastChart();
+    initDateWidget();
+    initLaunchModal();
 }
 
 if (document.readyState === "loading") {

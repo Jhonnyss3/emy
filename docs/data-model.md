@@ -26,6 +26,9 @@ Valores em inglês (banco/código), **labels em pt-BR** (exibidos via `get_*_dis
 `credit_card` (Cartão de crédito), `pix` (Pix), `bank_slip` (Boleto),
 `bank_transfer` (Transferência)
 
+**CategoryNature** — `fixed` (Fixa), `variable` (Variável) — se a categoria
+repete todo mês (fixa) ou muda a cada mês (variável). Usado por `Category.nature`.
+
 ## Category
 
 Bucket definido pelo usuário para classificar transações.
@@ -36,6 +39,7 @@ Bucket definido pelo usuário para classificar transações.
 | `household` | FK → `Household` | `null=True, blank=True`, `on_delete=CASCADE`, `related_name="categories"` — nulo = categoria pessoal; preenchido = categoria do grupo |
 | `name` | CharField(80) | |
 | `type` | CharField(10) | choices de `TransactionType` |
+| `nature` | CharField(10) | choices de `CategoryNature`, default `variable` — agrupa as categorias em Fixa/Variável (grupos fixos do sistema, exibidos como "pai" na listagem e no select de lançamento) |
 | `color` | CharField(7) | hex, default `#3498db`, validado por `RegexValidator` (`#rgb` ou `#rrggbb`) |
 | `icon` | ImageField | `upload_to="category_icons/"`, `blank=True, null=True` — imagem enviada pelo usuário (exige Pillow), opcional |
 | `is_active` | Boolean | default `True` |
@@ -266,6 +270,14 @@ Item de uma lista de casa.
   inconsistência entre os dois campos.
 - **`UniqueConstraint` por trio** — a unicidade não é por nome global:
   usuários diferentes podem ter categorias homônimas.
+- **Natureza Fixa/Variável como grupos fixos do sistema (não hierarquia livre)**
+  — em vez de um auto-FK `parent`, `Category` ganhou um campo `nature`
+  (`fixed`/`variable`, default `variable`). Os dois grupos são fixos e não
+  editáveis; cada categoria é classificada num deles. A listagem de categorias e
+  o select de lançamento agrupam por natureza (efeito "pai → subcategoria") sem
+  o custo de uma árvore. `nature` não entra nas `UniqueConstraint` de escopo.
+  Nomenclatura distinta de "conta fixa" (`RecurringTransaction`): natureza é uma
+  classificação da categoria, não um lançamento recorrente.
 - **Escopo pessoal x grupo via `household` opcional** — em vez de tabelas
   separadas, `Category`/`Transaction` ganharam um FK `household` anulável:
   nulo = pessoal (privado do `user`), preenchido = do grupo (compartilhado

@@ -49,7 +49,9 @@
     `.color-swatch[data-color]` setam o `<input type="color">`);
   - `moneyMask` — máscara de moeda (campo visível formatado + `<input hidden>`
     com o valor numérico), via `data-money-display`/`data-money-target` (usado no
-    campo Meta de investimento);
+    campo Meta de investimento e nos campos de valor de **lançamento** e **conta
+    fixa** — "quanto foi?" / "valor mensal"). O `<input hidden>` renderiza o valor
+    com `|unlocalize` para não localizar o decimal (`1.234,56`) e quebrar o parse;
   - `categoryDonut` — desenha um donut (SVG puro, sem lib) de gastos por
     categoria no dashboard, lendo os dados de um `{% json_script %}`
     (`#category-data`);
@@ -60,7 +62,17 @@
   - `filterForm` — auto-submete o form de filtros ao mudar um controle marcado
     com `data-autosubmit` (usado na lista de lançamentos);
   - `selectWidget` — **enriquece todo `<select>` nativo** num dropdown
-    estilizado (ver seção **Componentes de seleção**).
+    estilizado (ver seção **Componentes de seleção**);
+  - `dateWidget` — **widget de data** no padrão Emy (`[data-date-widget]`): um
+    botão mostra a data em `dd/mm/aaaa`, um `<input hidden>` carrega o valor ISO
+    (`AAAA-MM-DD`) que o form envia, e um popover desenha um calendário do mês
+    em JS puro (navegação ‹ ›, "Hoje", "Limpar") — sem `<input type="date">`
+    nativo, sem lib. Substitui os inputs de data de lançamento, conta fixa,
+    perfil, investimento e aporte (e resolve na raiz o bug de localização da
+    data na edição). Markup no partial `_date_field.html`;
+  - `launchModal` — **modal global de lançamento** (desktop): abre/fecha o modal,
+    alterna as abas Manual/Conta fixa e submete os forms via **AJAX** (ver seção
+    **Modal de lançamento**).
   Cada módulo é guard-claused, então o bundle único roda em qualquer página.
 - Build: `npm run build` gera `frontend/dist/` (bundle + `manifest.json`) —
   **artefato de build, no `.gitignore`**. **Recompilar sempre que mexer em JS**
@@ -102,7 +114,11 @@ Trechos de markup repetidos viram partial parametrizado em `finances/templates/f
 - `_progress_bar.html` — barra de progresso; aceita `percent` e `track_class`
   (altura/margem).
 - `_category_select.html` — dropdown de categoria dos forms (ver
-  **Componentes de seleção**).
+  **Componentes de seleção**); agrupa as opções por natureza Fixa/Variável.
+- `_date_field.html` — **widget de data** (ver módulo `dateWidget`); aceita
+  `name`, `value` (data ou string ISO) e `input_id` opcional.
+- `_launch_modal.html` — **modal global de lançamento** com abas Manual/Conta
+  fixa; incluído no `base.html` (ver **Modal de lançamento**).
 
 ### Formatação de dinheiro (`brl`)
 
@@ -125,9 +141,16 @@ antigo `R$ {{ x|floatformat:2 }}`.
   `data-color` ganham bolinha de cor. Como o nativo permanece no DOM, o
   `data-autosubmit` (auto-submit de filtros) continua funcionando.
 - **Exceções já-widget:** o dropdown de categoria dos forms
-  (`_category_select.html` + módulo `categorySelect`, com filtro por tipo) e o
-  seletor de escopo no header (`<details>` em `base.html`) já são widgets no
-  mesmo padrão visual — não usam o `selectWidget` genérico.
+  (`_category_select.html` + módulo `categorySelect`, com filtro por tipo e
+  **agrupamento por natureza Fixa/Variável** — o `categorySelect` esconde o
+  cabeçalho de um grupo quando o filtro de tipo zera suas opções) e o seletor de
+  escopo no header (`<details>` em `base.html`) já são widgets no mesmo padrão
+  visual — não usam o `selectWidget` genérico.
+- **Campo de parcelas:** o campo "Parcelas" do lançamento é um `<select>`
+  (enum estático "À vista (1x)" a "24x"), enriquecido pelo `selectWidget` — não
+  mais um `<input type="number">` cru.
+- **Campo de data:** ver o módulo `dateWidget` / partial `_date_field.html` — é
+  o widget de seleção de data no padrão Emy (não usa o `<input type="date">`).
 - **Regra de dado dinâmico (criado pelo usuário):** todo select de dado
   dinâmico (ex.: categorias) deve **sempre** oferecer, na própria listagem do
   widget, a opção de **criar um novo** — não só quando a lista está vazia. No
@@ -194,6 +217,32 @@ Mobile é coluna única; a partir de `lg:` as telas usam **duas colunas**
 - **Forms:** padrão "card dividido" (`md:grid-cols-2`) — painel de gradiente
   com título à esquerda, campos à direita; empilha no mobile.
 
+## Modal de lançamento
+
+O lançamento é o **form padrão do sistema** e vive num **modal global**
+(`_launch_modal.html`, incluído no `base.html` para o usuário autenticado),
+com abas **Manual** (`TransactionForm`) e **Conta fixa** (`RecurringTransactionForm`).
+
+- **Abertura:** os botões de lançar (`+ Lançar` no dashboard, `+ Lançamento` na
+  lista, `+` da nav inferior) levam `data-open-launch`. No **desktop** (≥ `lg`,
+  1024px) o módulo `launchModal` intercepta o clique e abre o modal; no
+  **mobile** o link segue para a página do form (comportamento padrão).
+- **Forms no contexto:** o context processor `finances.context_processors.scope`
+  expõe `launch_transaction_form` e `launch_recurring_form` (não vinculados,
+  no escopo ativo; o manual já vem com `date` = hoje). Por isso o modal renderiza
+  em qualquer página. Os campos usam ids prefixados (`id_lm_tx_*`/`id_lm_rt_*`)
+  para não colidir entre as duas abas.
+- **Submit por AJAX:** o `launchModal` envia via `fetch` com
+  `X-Requested-With: XMLHttpRequest`. As views `transaction_create`/`recurring_create`
+  respondem JSON quando é AJAX: `{"ok": true}` no sucesso (o JS recarrega a
+  página atual, e a `messages.success` aparece no reload) e
+  `{"ok": false, "errors": {...}}` (HTTP 400) na validação — o JS injeta as
+  mensagens nos slots `[data-launch-error="<campo>"]` do modal **sem recarregar**,
+  preservando o que foi digitado. Fora do AJAX (mobile/fallback) as views seguem
+  renderizando a página e redirecionando como antes.
+- Dentro do modal os componentes novos rodam normalmente (widget de data,
+  máscara de valor, select de categoria agrupado, `selectWidget`).
+
 ## Templates
 
 `APP_DIRS=True` — templates ficam em `finances/templates/`. O
@@ -202,20 +251,20 @@ pelo app `finances`, que tem o seu próprio `base.html`.
 
 | Template | Conteúdo |
 |---|---|
-| `base.html` | App shell: header (logo + seletor de escopo em dropdown + usuário/Sair), `main` rolável sem barra com conteúdo centralizado, nav inferior de ícones (mobile e desktop), barra de loading e bloco de mensagens. Ver seção **Layout / app shell**. |
+| `base.html` | App shell: header (logo + seletor de escopo em dropdown + usuário/Sair), `main` rolável sem barra com conteúdo centralizado, nav inferior de ícones (mobile e desktop), barra de loading, bloco de mensagens e o **modal global de lançamento** (`_launch_modal.html`). Ver **Layout / app shell** e **Modal de lançamento**. |
 | `finances/scope_switch.html` | Escolha do escopo ativo (Pessoal ou um grupo) + link "Gerenciar grupos". |
 | `finances/household_list.html` | Lista dos grupos do usuário + botão "Novo grupo". |
 | `finances/household_form.html` | Criação/edição de grupo (nome); rótulo do botão via `submit_label`. |
 | `finances/household_detail.html` | Membros do grupo; o dono edita/exclui o grupo (ações no topo), adiciona membro por e-mail e remove membros. |
 | `finances/dashboard.html` | Cabeçalho (saudação + navegação por mês + "+ Lançar"), linha de 4 cards de stat (Saldo destaque / Entrou / Saiu / Investido), card do total no **cartão de crédito** do mês, lançamentos do mês (selo "2/12") + card "Listas da casa" (em grupo), e dois recortes de despesa do mês: **gastos por categoria** (com **donut** SVG) e **por forma de pagamento**. Layout 50/50 no desktop. |
 | `finances/forecast.html` | Previsão dos próximos 6 meses em cards (saldo previsto + entrou/saiu); cada card abre o mês no dashboard; mês atual em gradiente. |
-| `finances/transaction_list.html` | Layout 50/50: **painel de filtros + resumo** à esquerda (fixo no desktop — navegação por mês, resumo Entrou/Saiu/Saldo do período filtrado, filtros combináveis de tipo/categoria/forma de pagamento/busca, "Contas fixas" e "Limpar filtros") e a lista de transações à direita (selo "2/12"). Os filtros preservam o mês e auto-submetem. |
-| `finances/transaction_form.html` | Card dividido: toggle Despesa/Receita, valor grande, **dropdown de categoria** (widget filtrado por tipo), data, método, parcelas (só na criação), observações. |
-| `finances/_back_button.html`, `_empty_state.html`, `_progress_bar.html`, `_category_select.html` | Partials reutilizáveis (ver **Componentes reutilizáveis** e **Componentes de seleção**). |
+| `finances/transaction_list.html` | Layout 50/50: **painel de filtros + resumo** à esquerda (fixo no desktop — navegação por mês, **ordenação Data \| Valor**, resumo Entrou/Saiu/Saldo do período filtrado, filtros combináveis de tipo/categoria/forma de pagamento/busca, "Contas fixas" e "Limpar filtros") e a lista de transações à direita (selo "2/12"; com cabeçalhos Receitas/Despesas quando ordenado por valor). Os filtros e a ordenação preservam o mês e auto-submetem. |
+| `finances/transaction_form.html` | Card dividido: toggle Despesa/Receita, valor grande com **máscara de moeda**, **dropdown de categoria** (widget filtrado por tipo e agrupado por natureza), **widget de data**, método, **parcelas como `<select>`** (só na criação), observações. |
+| `finances/_back_button.html`, `_empty_state.html`, `_progress_bar.html`, `_category_select.html`, `_date_field.html`, `_launch_modal.html` | Partials reutilizáveis (ver **Componentes reutilizáveis**, **Componentes de seleção** e **Modal de lançamento**). |
 | `finances/recurring_list.html` | Grid de cards das contas fixas (valor, dia, ativa/pausada) + ações. |
 | `finances/recurring_form.html` | Card dividido de conta fixa (tipo, valor mensal, categoria, a partir de, método, ativa). |
-| `finances/category_list.html` | Grid de cards de categoria. |
-| `finances/category_form.html` | Formulário de categoria (toggle de tipo, cor, ícone, ativo). |
+| `finances/category_list.html` | Cards de categoria agrupados por **natureza** (seções Fixa/Variável). |
+| `finances/category_form.html` | Formulário de categoria (toggle de tipo, **toggle de natureza Fixa/Variável**, cor, ícone, ativo). |
 | `finances/profile_form.html` | Formulário de perfil (nome, sobrenome, data de nascimento, telefone). Usado no preenchimento pós-cadastro e na edição. |
 | `finances/investment_list.html` | Objetivos de investimento em cards com barra de progresso + total investido. |
 | `finances/investment_form.html` | Criação/edição de objetivo (nome, meta, prazo opcional). |
@@ -285,6 +334,17 @@ redesenhada com painel de filtros + resumo; a seleção de categoria virou
 **dropdown widget** e **todo `<select>` passou a ser widget**
 (ver **Componentes de seleção**); e o app ganhou **favicon** SVG e o selo
 **Beta V0.2**.
+
+A leva mais recente (rodada de ajustes do tester): os campos de valor de
+**lançamento** e **conta fixa** ganharam **máscara de moeda**; os inputs de data
+viraram um **widget de data** próprio (`dateWidget`/`_date_field.html`),
+corrigindo na raiz o bug da data sumir na edição; a **descrição** parou de cortar
+(quebra em até 2 linhas na lista e no dashboard); a lista de lançamentos ganhou
+**ordenação Data \| Valor** (em Valor, agrupa Receitas/Despesas, maior→menor);
+`Category` ganhou **natureza Fixa/Variável** (grupos fixos) que agrupa a listagem
+e o select de categoria; o campo **Parcelas** virou `<select>` (widget); e o
+**lançamento virou um modal global** (abas Manual/Conta fixa, AJAX, desktop)
+com fallback por URL no mobile (ver **Modal de lançamento**).
 
 Pendências de UI conhecidas:
 

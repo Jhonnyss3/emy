@@ -10,13 +10,19 @@
         </svg>
     </button>
     <div class="absolute z-20 mt-2 hidden max-h-60 w-full overflow-y-auto rounded-2xl bg-emy-surface p-1.5 shadow-card ring-1 ring-emy-line" data-category-panel role="listbox">
-        {% for cat in form.category.field.queryset %}
-            <button type="button" role="option" data-category-option
-                    data-value="{{ cat.pk }}" data-type="{{ cat.type }}" data-color="{{ cat.color }}" data-name="{{ cat.name }}"
-                    class="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-emy-ink-soft transition hover:bg-emy-bg">
-                <span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background:{{ cat.color }}"></span>
-                <span class="truncate">{{ cat.name }}</span>
-            </button>
+        {% regroup form.category.field.queryset by get_nature_display as cat_groups %}
+        {% for group in cat_groups %}
+            <div data-nature-group>
+                <p class="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-emy-ink-mute">{{ group.grouper }}</p>
+                {% for cat in group.list %}
+                    <button type="button" role="option" data-category-option
+                            data-value="{{ cat.pk }}" data-type="{{ cat.type }}" data-color="{{ cat.color }}" data-name="{{ cat.name }}"
+                            class="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-emy-ink-soft transition hover:bg-emy-bg">
+                        <span class="h-2.5 w-2.5 shrink-0 rounded-full" style="background:{{ cat.color }}"></span>
+                        <span class="truncate">{{ cat.name }}</span>
+                    </button>
+                {% endfor %}
+            </div>
         {% empty %}
             <p class="px-3 py-2 text-sm text-emy-ink-soft">Nenhuma categoria ativa.</p>
         {% endfor %}

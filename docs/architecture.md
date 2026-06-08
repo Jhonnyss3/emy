@@ -22,11 +22,11 @@
 emy/
 ├── core/                 # Projeto Django (settings, urls, wsgi/asgi)
 ├── finances/             # App de domínio
-│   ├── models.py         # Category, Transaction, Profile, Household(+Membership), InvestmentGoal(+Contribution), HouseholdList(+Item), enums, ScopedQuerySet + mixins
+│   ├── models.py         # Category (+nature), Transaction, Profile, Household(+Membership), InvestmentGoal(+Contribution), HouseholdList(+Item), enums (TransactionType, PaymentMethod, CategoryNature), ScopedQuerySet + mixins
 │   ├── forms.py          # Registration, Category, Transaction, Profile, Household(+Member), InvestmentGoal, Contribution, HouseholdList(+Item)
-│   ├── views.py          # register, profile_edit, dashboard, CRUD, grupos e escopo
+│   ├── views.py          # register, profile_edit, dashboard, CRUD, grupos e escopo; create de lançamento/conta fixa respondem JSON ao modal (AJAX)
 │   ├── middleware.py     # ProfileCompletionMiddleware
-│   ├── context_processors.py  # scope: active_household + user_households nos templates
+│   ├── context_processors.py  # scope: active_household + user_households + launch_transaction_form/launch_recurring_form (modal) nos templates
 │   ├── admin.py          # CategoryAdmin, TransactionAdmin, HouseholdAdmin, HouseholdMembershipAdmin
 │   ├── urls.py           # rotas do app (app_name = "finances")
 │   ├── templatetags/     # money.py — filtro `brl` (dinheiro pt-BR)
@@ -79,7 +79,9 @@ sessão (`request.session["active_household_id"]`).
   mesmo escopo (objetivos pessoais ou de grupo).
 - O context processor `finances.context_processors.scope` expõe
   `active_household` e `user_households` a todos os templates (pílula de escopo
-  no `base.html`).
+  no `base.html`), além de `launch_transaction_form`/`launch_recurring_form`
+  (forms não vinculados, no escopo ativo) que alimentam o modal global de
+  lançamento.
 - O dashboard soma os aportes do mês no escopo ativo e os subtrai do saldo
   (aporte conta como saída de caixa). Listas de casa existem só em grupo.
 
@@ -95,8 +97,8 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a
 | `scope_switch` | `finances:scope_switch` | Troca o escopo ativo (pessoal ou grupo) na sessão. |
 | `dashboard` | `finances:dashboard` | Resumo do mês selecionado (`?month=AAAA-MM`) + lançamentos do mês; materializa as contas fixas. Inclui total no cartão de crédito e recortes de despesa por categoria (`by_category`, alimenta o donut) e por forma de pagamento (`by_payment`). |
 | `forecast` | `finances:forecast` | Previsão dos próximos 6 meses (transações reais + contas fixas projetadas, sem dupla contagem). |
-| `transaction_list` | `finances:transaction_list` | Lista as transações do mês (`?month=`) com filtros combináveis (AND): `?type=`, `?category=<pk>`, `?payment_method=`, busca `?q=`; calcula o resumo (Entrou/Saiu/Saldo) do conjunto filtrado; materializa as contas fixas. |
-| `transaction_create` | `finances:transaction_create` | Cria transação no escopo ativo. |
+| `transaction_list` | `finances:transaction_list` | Lista as transações do mês (`?month=`) com filtros combináveis (AND): `?type=`, `?category=<pk>`, `?payment_method=`, busca `?q=` e **ordenação `?sort=date\|amount`** (em `amount` agrupa receitas/despesas e ordena maior→menor); calcula o resumo (Entrou/Saiu/Saldo) do conjunto filtrado; materializa as contas fixas. |
+| `transaction_create` | `finances:transaction_create` | Cria transação no escopo ativo; responde JSON ao modal (AJAX): `{"ok": true}` no sucesso, `{"ok": false, "errors": …}` (400) na validação. |
 | `transaction_update` | `finances:transaction_update` | Edita transação dentro do escopo. |
 | `transaction_delete` | `finances:transaction_delete` | Exclui transação após confirmação via POST. |
 | `category_list` | `finances:category_list` | Lista categorias do escopo ativo. |
@@ -104,7 +106,7 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a
 | `category_update` | `finances:category_update` | Edita categoria dentro do escopo. |
 | `category_delete` | `finances:category_delete` | Exclui categoria; bloqueia se houver transações ou contas fixas vinculadas. |
 | `recurring_list` | `finances:recurring_list` | Lista as contas fixas do escopo ativo. |
-| `recurring_create/update/delete` | `finances:recurring_*` | CRUD de conta fixa; o create materializa o mês corrente. |
+| `recurring_create/update/delete` | `finances:recurring_*` | CRUD de conta fixa; o create materializa o mês corrente e responde JSON ao modal (AJAX), igual ao `transaction_create`. |
 | `household_list` | `finances:household_list` | Lista os grupos do usuário. |
 | `household_create` | `finances:household_create` | Cria grupo + membership do dono (atômico). |
 | `household_detail` | `finances:household_detail` | Membros do grupo; o dono edita/exclui o grupo e adiciona/remove. |

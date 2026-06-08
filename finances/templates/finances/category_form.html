@@ -53,6 +53,28 @@
                 {% for error in form.type.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
             </div>
 
+            <div>
+                <p class="mb-1 text-sm font-semibold text-emy-ink-soft">Natureza</p>
+                <div class="flex gap-2">
+                    <label class="flex-1 cursor-pointer">
+                        <input type="radio" name="nature" value="variable" class="peer sr-only"
+                               {% if form.nature.value == 'variable' or not form.nature.value %}checked{% endif %}>
+                        <span class="block rounded-2xl bg-emy-bg py-3 text-center text-sm font-bold text-emy-ink-soft transition peer-checked:bg-gradient-to-br peer-checked:from-emy-pink-500 peer-checked:to-emy-purple-500 peer-checked:text-white">
+                            Variável
+                        </span>
+                    </label>
+                    <label class="flex-1 cursor-pointer">
+                        <input type="radio" name="nature" value="fixed" class="peer sr-only"
+                               {% if form.nature.value == 'fixed' %}checked{% endif %}>
+                        <span class="block rounded-2xl bg-emy-bg py-3 text-center text-sm font-bold text-emy-ink-soft transition peer-checked:bg-gradient-to-br peer-checked:from-emy-purple-500 peer-checked:to-emy-purple-600 peer-checked:text-white">
+                            Fixa
+                        </span>
+                    </label>
+                </div>
+                <p class="mt-1 text-xs text-emy-ink-mute">Fixa repete todo mês (aluguel, salário). Variável muda a cada mês (mercado, lazer).</p>
+                {% for error in form.nature.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
+            </div>
+
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label for="id_color" class="mb-1 block text-sm font-semibold text-emy-ink-soft">Cor</label>

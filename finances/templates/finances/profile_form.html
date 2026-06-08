@@ -44,9 +44,8 @@
             </div>
 
             <div>
-                <label for="id_birth_date" class="mb-1 block text-sm font-semibold text-emy-ink-soft">Data de nascimento</label>
-                <input type="date" name="birth_date" id="id_birth_date" required value="{{ form.birth_date.value|date:'Y-m-d' }}"
-                       class="w-full rounded-2xl bg-emy-bg px-4 py-3 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">
+                <span class="mb-1 block text-sm font-semibold text-emy-ink-soft">Data de nascimento</span>
+                {% include "finances/_date_field.html" with name="birth_date" value=form.birth_date.value input_id="id_birth_date" %}
                 {% for error in form.birth_date.errors %}<p class="mt-1 text-xs text-emy-bad">{{ error }}</p>{% endfor %}
             </div>
 

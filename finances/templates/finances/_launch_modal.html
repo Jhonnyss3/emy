@@ -1,0 +1,171 @@
+{% load l10n %}
+{# Global launch modal (desktop). Tabs: Manual (Transaction) and Conta fixa (Recurring). #}
+<div id="launch-modal" data-launch-modal class="fixed inset-0 z-50 hidden">
+    <div data-launch-close class="absolute inset-0 bg-emy-ink/40 backdrop-blur-sm"></div>
+    <div class="no-scrollbar absolute left-1/2 top-1/2 max-h-[calc(100dvh-3rem)] w-[min(40rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[2rem] bg-emy-surface p-6 shadow-[0_40px_100px_-30px_rgba(42,26,54,0.5)] sm:p-8">
+        <div class="flex items-center justify-between gap-3">
+            <h2 class="text-2xl font-extrabold tracking-tight">Lançar ✨</h2>
+            <button type="button" data-launch-close aria-label="Fechar"
+                    class="grid h-9 w-9 place-items-center rounded-full bg-emy-bg text-emy-ink-soft transition hover:text-emy-pink-600">✕</button>
+        </div>
+
+        <div class="mt-4 flex rounded-full bg-emy-bg p-1">
+            <button type="button" data-launch-tab="manual" data-active="true"
+                    class="flex-1 rounded-full py-2 text-center text-sm font-bold text-emy-ink-soft transition data-[active=true]:bg-gradient-to-br data-[active=true]:from-emy-pink-500 data-[active=true]:to-emy-purple-500 data-[active=true]:text-white">
+                Manual
+            </button>
+            <button type="button" data-launch-tab="recurring" data-active="false"
+                    class="flex-1 rounded-full py-2 text-center text-sm font-bold text-emy-ink-soft transition data-[active=true]:bg-gradient-to-br data-[active=true]:from-emy-pink-500 data-[active=true]:to-emy-purple-500 data-[active=true]:text-white">
+                Conta fixa
+            </button>
+        </div>
+
+        {# --- Manual --- #}
+        <div data-launch-panel="manual" class="mt-5">
+            {% with form=launch_transaction_form %}
+            <form method="post" action="{% url 'finances:transaction_create' %}" data-launch-form novalidate class="space-y-4">
+                {% csrf_token %}
+                <div data-launch-error="__all__" class="hidden rounded-2xl bg-emy-bad/10 px-4 py-3 text-sm text-emy-bad"></div>
+
+                <div class="flex gap-2">
+                    <label class="flex-1 cursor-pointer">
+                        <input type="radio" name="type" value="expense" class="peer sr-only" checked>
+                        <span class="block rounded-2xl bg-emy-bg py-2.5 text-center text-sm font-bold text-emy-ink-soft transition peer-checked:bg-gradient-to-br peer-checked:from-emy-pink-500 peer-checked:to-emy-purple-500 peer-checked:text-white">↓ Despesa</span>
+                    </label>
+                    <label class="flex-1 cursor-pointer">
+                        <input type="radio" name="type" value="income" class="peer sr-only">
+                        <span class="block rounded-2xl bg-emy-bg py-2.5 text-center text-sm font-bold text-emy-ink-soft transition peer-checked:bg-gradient-to-br peer-checked:from-emy-good peer-checked:to-emy-good peer-checked:text-white">↑ Receita</span>
+                    </label>
+                </div>
+
+                <div>
+                    <label for="id_lm_tx_amount_display" class="text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Quanto foi?</label>
+                    <input type="text" id="id_lm_tx_amount_display" inputmode="numeric" placeholder="R$ 0,00" autocomplete="off"
+                           data-money-display data-money-target="id_lm_tx_amount"
+                           class="mt-1 w-full bg-transparent text-4xl font-extrabold text-emy-ink outline-none placeholder:text-emy-ink-mute/40">
+                    <input type="hidden" name="amount" id="id_lm_tx_amount" value="{{ form.amount.value|default:''|unlocalize }}">
+                    <div data-launch-error="amount" class="mt-1 text-xs text-emy-bad"></div>
+                </div>
+
+                <div>
+                    <label for="id_lm_tx_description" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">O que foi?</label>
+                    <input type="text" name="description" id="id_lm_tx_description" placeholder="Compra da semana"
+                           value="{{ form.description.value|default:'' }}"
+                           class="w-full rounded-2xl bg-emy-bg px-4 py-3 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">
+                    <div data-launch-error="description" class="mt-1 text-xs text-emy-bad"></div>
+                </div>
+
+                <div>
+                    <span class="text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Categoria</span>
+                    {% include "finances/_category_select.html" %}
+                    <div data-launch-error="category" class="mt-1 text-xs text-emy-bad"></div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <span class="mb-1 block text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Data</span>
+                        {% include "finances/_date_field.html" with name="date" value=form.date.value input_id="id_lm_tx_date" %}
+                        <div data-launch-error="date" class="mt-1 text-xs text-emy-bad"></div>
+                    </div>
+                    <div>
+                        <label for="id_lm_tx_payment" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Pago com</label>
+                        <select name="payment_method" id="id_lm_tx_payment"
+                                class="w-full rounded-2xl bg-emy-bg px-4 py-3 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">
+                            {% for value, label in form.payment_method.field.choices %}
+                                <option value="{{ value }}" {% if form.payment_method.value == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label for="id_lm_tx_installments" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Parcelas</label>
+                    <select name="installments" id="id_lm_tx_installments"
+                            class="w-full rounded-2xl bg-emy-bg px-4 py-3 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">
+                        {% for value, label in form.installments.field.choices %}
+                            <option value="{{ value }}" {% if form.installments.value|stringformat:'s' == value|stringformat:'s' %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    <div data-launch-error="installments" class="mt-1 text-xs text-emy-bad"></div>
+                </div>
+
+                <button type="submit"
+                        class="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 px-5 py-3 text-sm font-bold text-white shadow-btn transition hover:opacity-95">
+                    ✓ Salvar lançamento
+                </button>
+            </form>
+            {% endwith %}
+        </div>
+
+        {# --- Conta fixa --- #}
+        <div data-launch-panel="recurring" class="mt-5 hidden">
+            {% with form=launch_recurring_form %}
+            <form method="post" action="{% url 'finances:recurring_create' %}" data-launch-form novalidate class="space-y-4">
+                {% csrf_token %}
+                <div data-launch-error="__all__" class="hidden rounded-2xl bg-emy-bad/10 px-4 py-3 text-sm text-emy-bad"></div>
+
+                <div class="flex gap-2">
+                    <label class="flex-1 cursor-pointer">
+                        <input type="radio" name="type" value="expense" class="peer sr-only" checked>
+                        <span class="block rounded-2xl bg-emy-bg py-2.5 text-center text-sm font-bold text-emy-ink-soft transition peer-checked:bg-gradient-to-br peer-checked:from-emy-pink-500 peer-checked:to-emy-purple-500 peer-checked:text-white">↓ Despesa</span>
+                    </label>
+                    <label class="flex-1 cursor-pointer">
+                        <input type="radio" name="type" value="income" class="peer sr-only">
+                        <span class="block rounded-2xl bg-emy-bg py-2.5 text-center text-sm font-bold text-emy-ink-soft transition peer-checked:bg-gradient-to-br peer-checked:from-emy-good peer-checked:to-emy-good peer-checked:text-white">↑ Receita</span>
+                    </label>
+                </div>
+
+                <div>
+                    <label for="id_lm_rt_amount_display" class="text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Valor mensal</label>
+                    <input type="text" id="id_lm_rt_amount_display" inputmode="numeric" placeholder="R$ 0,00" autocomplete="off"
+                           data-money-display data-money-target="id_lm_rt_amount"
+                           class="mt-1 w-full bg-transparent text-4xl font-extrabold text-emy-ink outline-none placeholder:text-emy-ink-mute/40">
+                    <input type="hidden" name="amount" id="id_lm_rt_amount" value="{{ form.amount.value|default:''|unlocalize }}">
+                    <div data-launch-error="amount" class="mt-1 text-xs text-emy-bad"></div>
+                </div>
+
+                <div>
+                    <label for="id_lm_rt_description" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">O que é?</label>
+                    <input type="text" name="description" id="id_lm_rt_description" placeholder="Aluguel"
+                           value="{{ form.description.value|default:'' }}"
+                           class="w-full rounded-2xl bg-emy-bg px-4 py-3 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">
+                    <div data-launch-error="description" class="mt-1 text-xs text-emy-bad"></div>
+                </div>
+
+                <div>
+                    <span class="text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Categoria</span>
+                    {% include "finances/_category_select.html" %}
+                    <div data-launch-error="category" class="mt-1 text-xs text-emy-bad"></div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <span class="mb-1 block text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Vencimento</span>
+                        {% include "finances/_date_field.html" with name="start_date" value=form.start_date.value input_id="id_lm_rt_start_date" %}
+                        <div data-launch-error="start_date" class="mt-1 text-xs text-emy-bad"></div>
+                    </div>
+                    <div>
+                        <label for="id_lm_rt_payment" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Pago com</label>
+                        <select name="payment_method" id="id_lm_rt_payment"
+                                class="w-full rounded-2xl bg-emy-bg px-4 py-3 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">
+                            {% for value, label in form.payment_method.field.choices %}
+                                <option value="{{ value }}" {% if form.payment_method.value == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <label class="flex items-center gap-3">
+                    <input type="checkbox" name="is_active" value="on" checked class="h-5 w-5 rounded-md accent-emy-pink-500">
+                    <span class="text-sm font-semibold text-emy-ink-soft">Ativa (gera lançamento todo mês)</span>
+                </label>
+
+                <button type="submit"
+                        class="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 px-5 py-3 text-sm font-bold text-white shadow-btn transition hover:opacity-95">
+                    ✓ Salvar conta fixa
+                </button>
+            </form>
+            {% endwith %}
+        </div>
+    </div>
+</div>

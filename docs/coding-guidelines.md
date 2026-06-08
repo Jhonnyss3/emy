@@ -76,8 +76,9 @@ model → form → view → url → template
 
 ## Forms
 
-- `CategoryForm` — `ModelForm` de `Category`, campos `name`, `type`, `color`,
-  `icon`, `is_active`. Widget `type=color` para `color`. Recebe `user=` e
+- `CategoryForm` — `ModelForm` de `Category`, campos `name`, `type`, `nature`,
+  `color`, `icon`, `is_active`. Widget `type=color` para `color`; `nature`
+  (Fixa/Variável) renderiza como toggle no template. Recebe `user=` e
   `household=` por kwarg; no `clean()` atribui `instance.user`/`instance.household`
   (só no create) e mantém esses campos fora do `_get_validation_exclusions`, para
   que o `full_clean` rode as `UniqueConstraint` de escopo e a categoria duplicada
@@ -85,11 +86,12 @@ model → form → view → url → template
 - `TransactionForm` — `ModelForm` de `Transaction`. Recebe `user=`/`household=`
   por kwarg no `__init__` e:
   - filtra o queryset de `category` para mostrar apenas categorias ativas do
-    escopo ativo;
+    escopo ativo, ordenadas por `nature` (para o select agrupar Fixa/Variável);
   - em `clean()`, atribui `self.instance.user`/`self.instance.household` antes
     de o `Model.clean()` rodar as validações cruzadas;
-  - campo não-model `installments` (1–60): acima de 1, o `amount` é o total e a
-    view gera N parcelas mensais (`_save_installments`).
+  - campo não-model `installments`: `TypedChoiceField` (coerce `int`, "À vista
+    (1x)" a "24x", default 1), renderizado como `<select>`. Acima de 1, o
+    `amount` é o total e a view gera N parcelas mensais (`_save_installments`).
   - Widgets: `date` (`type=date`), `amount` (`step=0.01`, `min=0.01`),
     `notes` (textarea).
 - `RecurringTransactionForm` — `ModelForm` de `RecurringTransaction` (conta
@@ -109,11 +111,14 @@ templates/JS:
 
 - **Reaproveitar antes de copiar:** classes de componente (`.card`,
   `.btn-primary`, `shadow-card`/`shadow-btn`), partials (`_back_button`,
-  `_empty_state`, `_progress_bar`, `_category_select`) e o filtro `brl`
-  (`{{ valor|brl }}` para dinheiro, com `{% load money %}`).
+  `_empty_state`, `_progress_bar`, `_category_select`, `_date_field`,
+  `_launch_modal`) e o filtro `brl` (`{{ valor|brl }}` para dinheiro, com
+  `{% load money %}`).
 - **Componentes de seleção sempre como widget**, nunca o controle nativo cru —
-  todo `<select>` é enriquecido pelo módulo `selectWidget`. Vale também para
-  futuros toggles/checkboxes (mesma abordagem de widget + tokens Emy).
+  todo `<select>` é enriquecido pelo módulo `selectWidget`; **datas** usam o
+  widget próprio (`dateWidget`/`_date_field.html`), nunca `<input type="date">`;
+  **valores em dinheiro** usam a máscara `moneyMask`. Vale também para futuros
+  toggles/checkboxes (mesma abordagem de widget + tokens Emy).
 - **Select de dado dinâmico** (criado pelo usuário) **sempre** oferece a opção de
   **criar** na listagem do widget (`data-create-url`/`data-create-label`, ou
   link fixo como no `_category_select.html`); enums estáticos não.

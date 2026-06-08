@@ -133,6 +133,10 @@ usuários sobre a mesma carteira (conta compartilhada).
 | RF36 | O dashboard exibe os gastos do mês por categoria (com gráfico donut) e por forma de pagamento. | Média |
 | RF37 | A lista de lançamentos oferece filtros combináveis por tipo, categoria, forma de pagamento e busca por descrição, com resumo (Entrou/Saiu/Saldo) do período filtrado. | Média |
 | RF38 | Todo componente de seleção é um widget estilizado; selects de dados criados pelo usuário oferecem sempre a opção de criar um novo na própria listagem. | Baixa |
+| RF39 | Cada categoria tem uma **natureza** (Fixa ou Variável — grupos fixos do sistema); a listagem de categorias e o seletor de categoria do lançamento agrupam por natureza. | Média |
+| RF40 | A lista de lançamentos pode ser ordenada por **data** ou por **valor**; ao ordenar por valor, agrupa receitas e despesas e ordena do maior para o menor. | Média |
+| RF41 | O lançamento (manual e conta fixa) é feito em um **modal** acessível de qualquer tela no desktop, sem perder a navegação atual; no mobile o lançamento abre a tela cheia do formulário. | Média |
+| RF42 | Os campos de data usam um widget próprio (`dd/mm/aaaa` + calendário); os campos de valor exibem máscara de moeda (`R$ 1.234,56`). | Baixa |
 
 ### 6.1 Flowchart Mermaid — fluxos de UX
 
@@ -285,6 +289,7 @@ classDiagram
         +FK household
         +String name
         +String type
+        +String nature
         +String color
         +ImageField icon
         +Boolean is_active
@@ -325,6 +330,12 @@ classDiagram
         pix
         bank_slip
         bank_transfer
+    }
+
+    class CategoryNature {
+        <<enumeration>>
+        fixed
+        variable
     }
 
     class Profile {
@@ -405,6 +416,7 @@ classDiagram
     Category "1" --> "0..*" Transaction : categoriza (PROTECT)
 
     Category ..> TransactionType : type
+    Category ..> CategoryNature : nature
     Transaction ..> TransactionType : type
     Transaction ..> PaymentMethod : payment_method
 ```
@@ -466,6 +478,7 @@ erDiagram
         int household_id FK "null = pessoal"
         string name
         string type "income | expense"
+        string nature "fixed | variable"
         string color "hex, default #3498db"
         image icon "opcional, upload (ImageField)"
         bool is_active "default true"
@@ -541,6 +554,9 @@ erDiagram
   `MinValueValidator(0.01)`. `InvestmentGoal.household` anulável (pessoal/grupo);
   os aportes do mês no escopo entram como saída no saldo do dashboard.
 - `HouseholdList.household`: FK obrigatória → listas existem só em grupo.
+- `Category.nature`: `CategoryNature` (`fixed`/`variable`, default `variable`) →
+  classifica a categoria em grupos fixos do sistema; **não** participa das
+  `UniqueConstraint` de escopo.
 
 ---
 
@@ -601,8 +617,10 @@ Títulos de página: `text-3xl font-extrabold tracking-tight`. Auxiliar:
   `rounded-[2.5rem]`), sombra difusa (`shadow-card`). Caso canônico na classe
   `.card`.
 - **Inputs:** `rounded-2xl bg-emy-bg`, foco em `ring-2 ring-emy-pink-400`.
-  Formulários renderizam campo a campo; `type` e `category` viram radios
-  estilizados (toggle / pills).
+  Formulários renderizam campo a campo; `type`, `nature` e `category` viram
+  controles estilizados (toggles / pills / dropdown). **Datas** usam um widget
+  próprio (`dd/mm/aaaa` + calendário em JS, valor ISO escondido); **valores em
+  dinheiro** usam máscara de moeda (`R$ 1.234,56`); **parcelas** é um `<select>`.
 - **Componentes de seleção:** sempre **widget estilizado** (nunca `<select>`
   nativo cru) — o módulo `selectWidget` enriquece todo `<select>`; o dropdown de
   categoria e o seletor de escopo já são widgets. Selects de dado dinâmico
@@ -620,6 +638,10 @@ Títulos de página: `text-3xl font-extrabold tracking-tight`. Auxiliar:
   usam card dividido (painel de gradiente + campos). Mobile em coluna única.
 - **Telas de auth e forms:** card dividido — painel de gradiente claro de um
   lado, conteúdo do outro.
+- **Modal de lançamento:** o lançamento é o form padrão num modal global com
+  abas Manual/Conta fixa, aberto no desktop a partir de qualquer botão "Lançar"
+  (submete por AJAX: recarrega no sucesso, mostra erros no próprio modal); no
+  mobile o botão abre a página cheia do formulário. Ver `docs/frontend.md`.
 
 > Os valores exatos de classe não são versionados aqui (são frágeis de
 > manter) — consultar os templates em `finances/templates/` para o detalhe.

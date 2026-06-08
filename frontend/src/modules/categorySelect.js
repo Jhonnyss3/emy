@@ -55,6 +55,7 @@ function setup(root) {
     });
 
     // Filter options by the form's selected type, clearing an incompatible choice.
+    const groups = Array.from(root.querySelectorAll("[data-nature-group]"));
     const form = root.closest("form");
     const typeInputs = form ? Array.from(form.querySelectorAll('input[name="type"]')) : [];
     const currentType = () => {
@@ -65,6 +66,13 @@ function setup(root) {
         const type = currentType();
         options.forEach((opt) => {
             opt.classList.toggle("hidden", Boolean(type) && opt.dataset.type !== type);
+        });
+        // Hide a nature group (Fixa/Variável) header when all its options are hidden.
+        groups.forEach((group) => {
+            const visible = group
+                .querySelectorAll("[data-category-option]:not(.hidden)")
+                .length;
+            group.classList.toggle("hidden", visible === 0);
         });
         const selected = options.find((opt) => opt.dataset.value === input.value);
         if (selected && type && selected.dataset.type !== type) setSelected(null);

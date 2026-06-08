@@ -18,7 +18,7 @@
             {% endif %}
         </div>
     </div>
-    <a href="{% url 'finances:transaction_create' %}"
+    <a href="{% url 'finances:transaction_create' %}" data-open-launch
        class="btn-primary">
         + Lançar
     </a>
@@ -76,7 +76,7 @@
                    class="flex items-center gap-3 rounded-2xl px-3 py-3 transition hover:bg-emy-bg">
                     <span class="h-9 w-9 shrink-0 rounded-xl" style="background:{{ t.category.color }}"></span>
                     <div class="min-w-0 flex-1">
-                        <p class="truncate text-sm font-semibold">
+                        <p class="line-clamp-2 text-sm font-semibold">
                             {{ t.description }}
                             {% if t.installment_label %}<span class="ml-1 rounded-full bg-emy-purple-100 px-1.5 py-0.5 text-[10px] font-bold text-emy-purple-700">{{ t.installment_label }}</span>{% endif %}
                         </p>

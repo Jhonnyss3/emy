@@ -9,6 +9,7 @@ from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Q, Sum
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
@@ -519,6 +520,11 @@ def transaction_list(request):
     if query:
         transactions = transactions.filter(description__icontains=query)
 
+    # Sort by value groups income/expense, each ordered high to low; default is by date.
+    sort = "amount" if request.GET.get("sort") == "amount" else "date"
+    if sort == "amount":
+        transactions = transactions.order_by("-type", "-amount")
+
     # Summary of the filtered set (answers "how much did I spend on this?").
     income = transactions.filter(type=TransactionType.INCOME).aggregate(
         total=Sum("amount")
@@ -535,6 +541,7 @@ def transaction_list(request):
             ("category", category_filter if category_filter.isdigit() else ""),
             ("payment_method", payment_filter if payment_filter in PaymentMethod.values else ""),
             ("q", query),
+            ("sort", sort if sort == "amount" else ""),
         )
         if value
     }
@@ -550,6 +557,7 @@ def transaction_list(request):
             "category_filter": category_filter,
             "payment_filter": payment_filter,
             "query": query,
+            "sort": sort,
             "categories": Category.objects.in_scope(request.user, household).filter(
                 is_active=True
             ),
@@ -598,6 +606,16 @@ def _save_installments(form, installments):
             )
 
 
+def _is_ajax(request):
+    """The launch modal posts with this header; we answer with JSON instead of a page."""
+    return request.headers.get("x-requested-with") == "XMLHttpRequest"
+
+
+def _form_errors(form):
+    """Flatten form.errors into {field: [messages]} for the modal to render."""
+    return {field: [str(error) for error in errors] for field, errors in form.errors.items()}
+
+
 @login_required
 def transaction_create(request):
     household = get_active_household(request)
@@ -615,7 +633,11 @@ def transaction_create(request):
             else:
                 form.save()
                 messages.success(request, "Lançamento criado.")
+            if _is_ajax(request):
+                return JsonResponse({"ok": True})
             return redirect("finances:transaction_list")
+        if _is_ajax(request):
+            return JsonResponse({"ok": False, "errors": _form_errors(form)}, status=400)
     else:
         form = TransactionForm(user=request.user, household=household)
     return render(
@@ -673,7 +695,10 @@ def transaction_delete(request, pk):
 @login_required
 def category_list(request):
     household = get_active_household(request)
-    categories = Category.objects.in_scope(request.user, household)
+    # Order by nature so the template can group categories under Fixa/Variável.
+    categories = Category.objects.in_scope(request.user, household).order_by(
+        "nature", "name"
+    )
     return render(
         request, "finances/category_list.html", {"categories": categories}
     )
@@ -774,7 +799,11 @@ def recurring_create(request):
             today = timezone.localdate()
             _materialize_recurring(request.user, household, today.year, today.month)
             messages.success(request, "Conta fixa criada.")
+            if _is_ajax(request):
+                return JsonResponse({"ok": True})
             return redirect("finances:recurring_list")
+        if _is_ajax(request):
+            return JsonResponse({"ok": False, "errors": _form_errors(form)}, status=400)
     else:
         form = RecurringTransactionForm(
             user=request.user,
