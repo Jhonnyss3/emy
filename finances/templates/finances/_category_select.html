@@ -1,5 +1,7 @@
+{# Category dropdown (Emy widget). Pass `categories` (queryset) + `selected` (pk),
+   or fall back to a bound `form.category`. #}
 <div class="relative mt-2" data-category-select>
-    <input type="hidden" name="category" value="{{ form.category.value|default:'' }}" data-category-input>
+    <input type="hidden" name="category" value="{{ selected|default:form.category.value|default:'' }}" data-category-input>
     <button type="button" data-category-toggle aria-haspopup="listbox" aria-expanded="false"
             class="flex w-full items-center justify-between gap-2 rounded-2xl bg-white/80 px-4 py-3 text-sm text-emy-ink ring-1 ring-emy-line transition focus:bg-emy-surface focus:outline-none focus:ring-2 focus:ring-emy-pink-400">
         <span class="flex min-w-0 items-center gap-2" data-category-label>
@@ -10,7 +12,7 @@
         </svg>
     </button>
     <div class="absolute z-20 mt-2 hidden max-h-60 w-full overflow-y-auto rounded-2xl bg-emy-surface p-1.5 shadow-card ring-1 ring-emy-line" data-category-panel role="listbox">
-        {% regroup form.category.field.queryset by get_nature_display as cat_groups %}
+        {% if categories %}{% regroup categories by get_nature_display as cat_groups %}{% else %}{% regroup form.category.field.queryset by get_nature_display as cat_groups %}{% endif %}
         {% for group in cat_groups %}
             <div data-nature-group>
                 <p class="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-emy-ink-mute">{{ group.grouper }}</p>

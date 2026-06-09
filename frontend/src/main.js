@@ -10,6 +10,7 @@ import { initSelectWidget } from "./modules/selectWidget.js";
 import { initForecastChart } from "./modules/forecastChart.js";
 import { initDateWidget } from "./modules/dateWidget.js";
 import { initLaunchModal } from "./modules/launchModal.js";
+import { initEditModal } from "./modules/editModal.js";
 
 function init() {
     initPageLoader();
@@ -24,6 +25,7 @@ function init() {
     initForecastChart();
     initDateWidget();
     initLaunchModal();
+    initEditModal();
 }
 
 if (document.readyState === "loading") {

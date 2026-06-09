@@ -119,7 +119,7 @@
                     </p>
                 {% endifchanged %}{% endif %}
                 <div class="flex items-center gap-3 rounded-2xl px-3 py-3 transition hover:bg-emy-bg">
-                    <a href="{% url 'finances:transaction_update' t.pk %}" class="flex min-w-0 flex-1 items-center gap-3">
+                    <a href="{% url 'finances:transaction_update' t.pk %}" data-open-edit="{{ t.pk }}" class="flex min-w-0 flex-1 items-center gap-3">
                         <span class="h-9 w-9 shrink-0 rounded-xl" style="background:{{ t.category.color }}"></span>
                         <div class="min-w-0">
                             <p class="line-clamp-2 text-sm font-semibold">
@@ -135,7 +135,7 @@
                         {% if t.type == 'income' %}+{% else %}−{% endif %} {{ t.amount|brl }}
                     </span>
                     <div class="flex shrink-0 items-center gap-2">
-                        <a href="{% url 'finances:transaction_update' t.pk %}"
+                        <a href="{% url 'finances:transaction_update' t.pk %}" data-open-edit="{{ t.pk }}"
                            class="rounded-full px-2.5 py-1 text-xs font-bold text-emy-ink-soft transition hover:bg-emy-bg-warm hover:text-emy-pink-600">
                             Editar
                         </a>
@@ -145,6 +145,7 @@
                         </a>
                     </div>
                 </div>
+                {% include "finances/_edit_modal.html" %}
             {% empty %}
                 {% if has_filters %}
                     {% include "finances/_empty_state.html" with message="Nenhum lançamento bate com esses filtros." %}

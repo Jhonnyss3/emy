@@ -1,0 +1,80 @@
+{% load l10n %}
+{# Per-transaction edit modal (desktop). Opened by the matching [data-open-edit]. #}
+<div data-edit-modal="{{ t.pk }}" class="fixed inset-0 z-50 hidden">
+    <div data-edit-close class="absolute inset-0 bg-emy-ink/40 backdrop-blur-sm"></div>
+    <div class="no-scrollbar absolute left-1/2 top-1/2 max-h-[calc(100dvh-3rem)] w-[min(40rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-[2rem] bg-emy-surface p-6 shadow-[0_40px_100px_-30px_rgba(42,26,54,0.5)] sm:p-8">
+        <div class="flex items-center justify-between gap-3">
+            <h2 class="text-2xl font-extrabold tracking-tight">Editar lançamento</h2>
+            <button type="button" data-edit-close aria-label="Fechar"
+                    class="grid h-9 w-9 place-items-center rounded-full bg-emy-bg text-emy-ink-soft transition hover:text-emy-pink-600">✕</button>
+        </div>
+
+        <form method="post" action="{% url 'finances:transaction_update' t.pk %}" data-edit-form novalidate class="mt-5 space-y-4">
+            {% csrf_token %}
+            <div data-edit-error="__all__" class="hidden rounded-2xl bg-emy-bad/10 px-4 py-3 text-sm text-emy-bad"></div>
+
+            <div class="flex gap-2">
+                <label class="flex-1 cursor-pointer">
+                    <input type="radio" name="type" value="expense" class="peer sr-only" {% if t.type == 'expense' %}checked{% endif %}>
+                    <span class="block rounded-2xl bg-emy-bg py-2.5 text-center text-sm font-bold text-emy-ink-soft transition peer-checked:bg-gradient-to-br peer-checked:from-emy-pink-500 peer-checked:to-emy-purple-500 peer-checked:text-white">↓ Despesa</span>
+                </label>
+                <label class="flex-1 cursor-pointer">
+                    <input type="radio" name="type" value="income" class="peer sr-only" {% if t.type == 'income' %}checked{% endif %}>
+                    <span class="block rounded-2xl bg-emy-bg py-2.5 text-center text-sm font-bold text-emy-ink-soft transition peer-checked:bg-gradient-to-br peer-checked:from-emy-good peer-checked:to-emy-good peer-checked:text-white">↑ Receita</span>
+                </label>
+            </div>
+
+            <div>
+                <label for="id_em_amount_{{ t.pk }}" class="text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Quanto foi?</label>
+                <input type="text" id="id_em_amount_display_{{ t.pk }}" inputmode="numeric" placeholder="R$ 0,00" autocomplete="off"
+                       data-money-display data-money-target="id_em_amount_{{ t.pk }}"
+                       class="mt-1 w-full bg-transparent text-4xl font-extrabold text-emy-ink outline-none placeholder:text-emy-ink-mute/40">
+                <input type="hidden" name="amount" id="id_em_amount_{{ t.pk }}" value="{{ t.amount|unlocalize }}">
+                <div data-edit-error="amount" class="mt-1 text-xs text-emy-bad"></div>
+            </div>
+
+            <div>
+                <label for="id_em_description_{{ t.pk }}" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">O que foi?</label>
+                <input type="text" name="description" id="id_em_description_{{ t.pk }}" placeholder="Compra da semana"
+                       value="{{ t.description }}"
+                       class="w-full rounded-2xl bg-emy-bg px-4 py-3 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">
+                <div data-edit-error="description" class="mt-1 text-xs text-emy-bad"></div>
+            </div>
+
+            <div>
+                <span class="text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Categoria</span>
+                {% include "finances/_category_select.html" with selected=t.category_id %}
+                <div data-edit-error="category" class="mt-1 text-xs text-emy-bad"></div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <span class="mb-1 block text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Data</span>
+                    {% include "finances/_date_field.html" with name="date" value=t.date %}
+                    <div data-edit-error="date" class="mt-1 text-xs text-emy-bad"></div>
+                </div>
+                <div>
+                    <label for="id_em_payment_{{ t.pk }}" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Pago com</label>
+                    <select name="payment_method" id="id_em_payment_{{ t.pk }}"
+                            class="w-full rounded-2xl bg-emy-bg px-4 py-3 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">
+                        {% for value, label in payment_methods %}
+                            <option value="{{ value }}" {% if t.payment_method == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div>
+                <label for="id_em_notes_{{ t.pk }}" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-emy-ink-mute">Observações</label>
+                <textarea name="notes" id="id_em_notes_{{ t.pk }}" rows="2" placeholder="Opcional"
+                          class="w-full rounded-2xl bg-emy-bg px-4 py-3 text-sm text-emy-ink outline-none ring-1 ring-emy-line transition focus:bg-emy-surface focus:ring-2 focus:ring-emy-pink-400">{{ t.notes }}</textarea>
+                <div data-edit-error="notes" class="mt-1 text-xs text-emy-bad"></div>
+            </div>
+
+            <button type="submit"
+                    class="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-emy-pink-500 to-emy-purple-500 px-5 py-3 text-sm font-bold text-white shadow-btn transition hover:opacity-95">
+                ✓ Salvar alterações
+            </button>
+        </form>
+    </div>
+</div>

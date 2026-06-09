@@ -99,7 +99,7 @@ Todas as views de dados são protegidas com `@login_required`. `register` é a
 | `forecast` | `finances:forecast` | Previsão dos próximos 6 meses (transações reais + contas fixas projetadas, sem dupla contagem). |
 | `transaction_list` | `finances:transaction_list` | Lista as transações do mês (`?month=`) com filtros combináveis (AND): `?type=`, `?category=<pk>`, `?payment_method=`, busca `?q=` e **ordenação `?sort=date\|amount`** (em `amount` agrupa receitas/despesas e ordena maior→menor); calcula o resumo (Entrou/Saiu/Saldo) do conjunto filtrado; materializa as contas fixas. |
 | `transaction_create` | `finances:transaction_create` | Cria transação no escopo ativo; responde JSON ao modal (AJAX): `{"ok": true}` no sucesso, `{"ok": false, "errors": …}` (400) na validação. |
-| `transaction_update` | `finances:transaction_update` | Edita transação dentro do escopo. |
+| `transaction_update` | `finances:transaction_update` | Edita transação dentro do escopo; responde JSON ao modal de edição (AJAX): `{"ok": true}` no sucesso, `{"ok": false, "errors": …}` (400) na validação. |
 | `transaction_delete` | `finances:transaction_delete` | Exclui transação após confirmação via POST. |
 | `category_list` | `finances:category_list` | Lista categorias do escopo ativo. |
 | `category_create` | `finances:category_create` | Cria categoria; `user` e `household` atribuídos na view. |

@@ -73,6 +73,11 @@
   - `launchModal` — **modal global de lançamento** (desktop): abre/fecha o modal,
     alterna as abas Manual/Conta fixa e submete os forms via **AJAX** (ver seção
     **Modal de lançamento**).
+  - `editModal` — **modal de edição por transação** (desktop) na lista de
+    lançamentos: os gatilhos `[data-open-edit="<pk>"]` abrem o
+    `[data-edit-modal="<pk>"]` correspondente (fechando os demais), e o submit é
+    por AJAX para `transaction_update` (erros nos slots `[data-edit-error]`); no
+    mobile o link segue para a página do form (ver seção **Modal de lançamento**).
   Cada módulo é guard-claused, então o bundle único roda em qualquer página.
 - Build: `npm run build` gera `frontend/dist/` (bundle + `manifest.json`) —
   **artefato de build, no `.gitignore`**. **Recompilar sempre que mexer em JS**
@@ -119,6 +124,10 @@ Trechos de markup repetidos viram partial parametrizado em `finances/templates/f
   `name`, `value` (data ou string ISO) e `input_id` opcional.
 - `_launch_modal.html` — **modal global de lançamento** com abas Manual/Conta
   fixa; incluído no `base.html` (ver **Modal de lançamento**).
+- `_edit_modal.html` — **modal de edição de transação**, renderizado por item no
+  loop da lista de lançamentos (a partir do objeto `t`); reusa o
+  `_category_select.html` (com `categories` + `selected`), o `_date_field.html` e
+  a máscara de moeda (ver **Modal de lançamento**).
 
 ### Formatação de dinheiro (`brl`)
 
@@ -243,6 +252,27 @@ com abas **Manual** (`TransactionForm`) e **Conta fixa** (`RecurringTransactionF
 - Dentro do modal os componentes novos rodam normalmente (widget de data,
   máscara de valor, select de categoria agrupado, `selectWidget`).
 
+### Edição (modal por transação)
+
+A edição na lista de lançamentos espelha o modal de criação, com o mesmo padrão
+de AJAX, mas para `transaction_update`:
+
+- **Renderização server-side por item:** o `_edit_modal.html` é incluído no loop
+  da lista, um modal por transação, preenchido a partir do objeto `t` (e das
+  `categories` do escopo já no contexto — **sem** instanciar um `TransactionForm`
+  por item). Optou-se por isso porque os widgets (data/categoria/moeda/
+  `selectWidget`) são inicializados uma vez no load e não têm API para repopular;
+  renderizar pronto no servidor é mais robusto que injetar HTML por AJAX ou
+  "setar" widgets via JS. Não tem abas nem parcelas (não se aplicam à edição); os
+  ids são prefixados pela pk (`id_em_*_<pk>`) para não colidir entre os modais.
+- **Abertura:** "Editar" (ou clicar na descrição) leva `data-open-edit="<pk>"`;
+  no desktop o `editModal` abre o `[data-edit-modal="<pk>"]`; no mobile segue para
+  a página do form.
+- **Submit por AJAX:** igual ao create — `{"ok": true}` recarrega; erros vão para
+  os slots `[data-edit-error="<campo>"]` sem recarregar.
+- **Trade-off:** um modal por transação no DOM (coerente com a lista, que carrega
+  o mês inteiro sem paginação); se pesar, evoluir para um único modal sob demanda.
+
 ## Templates
 
 `APP_DIRS=True` — templates ficam em `finances/templates/`. O
@@ -258,9 +288,9 @@ pelo app `finances`, que tem o seu próprio `base.html`.
 | `finances/household_detail.html` | Membros do grupo; o dono edita/exclui o grupo (ações no topo), adiciona membro por e-mail e remove membros. |
 | `finances/dashboard.html` | Cabeçalho (saudação + navegação por mês + "+ Lançar"), linha de 4 cards de stat (Saldo destaque / Entrou / Saiu / Investido), card do total no **cartão de crédito** do mês, lançamentos do mês (selo "2/12") + card "Listas da casa" (em grupo), e dois recortes de despesa do mês: **gastos por categoria** (com **donut** SVG) e **por forma de pagamento**. Layout 50/50 no desktop. |
 | `finances/forecast.html` | Previsão dos próximos 6 meses em cards (saldo previsto + entrou/saiu); cada card abre o mês no dashboard; mês atual em gradiente. |
-| `finances/transaction_list.html` | Layout 50/50: **painel de filtros + resumo** à esquerda (fixo no desktop — navegação por mês, **ordenação Data \| Valor**, resumo Entrou/Saiu/Saldo do período filtrado, filtros combináveis de tipo/categoria/forma de pagamento/busca, "Contas fixas" e "Limpar filtros") e a lista de transações à direita (selo "2/12"; com cabeçalhos Receitas/Despesas quando ordenado por valor). Os filtros e a ordenação preservam o mês e auto-submetem. |
+| `finances/transaction_list.html` | Layout 50/50: **painel de filtros + resumo** à esquerda (fixo no desktop — navegação por mês, **ordenação Data \| Valor**, resumo Entrou/Saiu/Saldo do período filtrado, filtros combináveis de tipo/categoria/forma de pagamento/busca, "Contas fixas" e "Limpar filtros") e a lista de transações à direita (selo "2/12"; com cabeçalhos Receitas/Despesas quando ordenado por valor). Os filtros e a ordenação preservam o mês e auto-submetem. No desktop, "Editar" abre o **modal de edição** (`_edit_modal.html`) da transação; no mobile vai para a página do form. |
 | `finances/transaction_form.html` | Card dividido: toggle Despesa/Receita, valor grande com **máscara de moeda**, **dropdown de categoria** (widget filtrado por tipo e agrupado por natureza), **widget de data**, método, **parcelas como `<select>`** (só na criação), observações. |
-| `finances/_back_button.html`, `_empty_state.html`, `_progress_bar.html`, `_category_select.html`, `_date_field.html`, `_launch_modal.html` | Partials reutilizáveis (ver **Componentes reutilizáveis**, **Componentes de seleção** e **Modal de lançamento**). |
+| `finances/_back_button.html`, `_empty_state.html`, `_progress_bar.html`, `_category_select.html`, `_date_field.html`, `_launch_modal.html`, `_edit_modal.html` | Partials reutilizáveis (ver **Componentes reutilizáveis**, **Componentes de seleção** e **Modal de lançamento**). |
 | `finances/recurring_list.html` | Grid de cards das contas fixas (valor, dia, ativa/pausada) + ações. |
 | `finances/recurring_form.html` | Card dividido de conta fixa (tipo, valor mensal, categoria, a partir de, método, ativa). |
 | `finances/category_list.html` | Cards de categoria agrupados por **natureza** (seções Fixa/Variável). |
@@ -345,6 +375,13 @@ corrigindo na raiz o bug da data sumir na edição; a **descrição** parou de c
 e o select de categoria; o campo **Parcelas** virou `<select>` (widget); e o
 **lançamento virou um modal global** (abas Manual/Conta fixa, AJAX, desktop)
 com fallback por URL no mobile (ver **Modal de lançamento**).
+
+A leva mais recente: a **edição** de lançamento na lista também virou **modal**
+(desktop), espelhando o de criação — um modal por transação renderizado no loop,
+preenchido a partir do objeto e submetido por AJAX para `transaction_update`
+(`editModal` / `_edit_modal.html`); o `_category_select.html` foi generalizado
+para aceitar `categories` + `selected` (ver seção **Modal de lançamento** →
+**Edição**).
 
 Pendências de UI conhecidas:
 

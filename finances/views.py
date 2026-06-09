@@ -560,7 +560,7 @@ def transaction_list(request):
             "sort": sort,
             "categories": Category.objects.in_scope(request.user, household).filter(
                 is_active=True
-            ),
+            ).order_by("nature", "name"),
             "payment_methods": PaymentMethod.choices,
             "summary_income": income,
             "summary_expense": expense,
@@ -663,7 +663,11 @@ def transaction_update(request, pk):
         if form.is_valid():
             form.save()
             messages.success(request, "Lançamento atualizado.")
+            if _is_ajax(request):
+                return JsonResponse({"ok": True})
             return redirect("finances:transaction_list")
+        if _is_ajax(request):
+            return JsonResponse({"ok": False, "errors": _form_errors(form)}, status=400)
     else:
         form = TransactionForm(
             instance=entry, user=request.user, household=household
