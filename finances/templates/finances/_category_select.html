@@ -1,7 +1,7 @@
 {# Category dropdown (Emy widget). Pass `categories` (queryset) + `selected` (pk),
    or fall back to a bound `form.category`. #}
 <div class="relative mt-2" data-category-select>
-    <input type="hidden" name="category" value="{{ selected|default:form.category.value|default:'' }}" data-category-input>
+    <input type="hidden" name="category" value="{% if selected %}{{ selected }}{% else %}{{ form.category.value|default:'' }}{% endif %}" data-category-input>
     <button type="button" data-category-toggle aria-haspopup="listbox" aria-expanded="false"
             class="flex w-full items-center justify-between gap-2 rounded-2xl bg-white/80 px-4 py-3 text-sm text-emy-ink ring-1 ring-emy-line transition focus:bg-emy-surface focus:outline-none focus:ring-2 focus:ring-emy-pink-400">
         <span class="flex min-w-0 items-center gap-2" data-category-label>
